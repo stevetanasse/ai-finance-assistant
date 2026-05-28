@@ -1,0 +1,10 @@
+langgraph
+langchain
+langchain-community
+chromadb
+streamlit
+requests
+beautifulsoup4
+pytest
+pytest-cov
+python-dotenv

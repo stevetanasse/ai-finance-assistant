@@ -1,0 +1,26 @@
+llm:
+  # provider: anthropic | openai
+  provider: anthropic
+  model: claude-sonnet-4-6
+  temperature: 0.0
+
+embeddings:
+  # provider: openai | huggingface
+  provider: openai
+  model: text-embedding-3-small
+
+chromadb:
+  host: localhost
+  port: 8000
+  collection_name: finance_docs
+
+scraper:
+  user_agent: "Mozilla/5.0"
+  request_timeout: 10
+  sources: []
+
+app:
+  title: "AI Finance Assistant"
+  host: localhost
+  port: 8501
+  debug: false
