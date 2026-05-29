@@ -32,7 +32,7 @@ class TestRagPipelineE2E:
 
         mapping_file = tmp_path / "html_cache" / "html_cache_mapping.json"
         assert mapping_file.exists()
-        mapping = json.loads(mapping_file.read_text())
+        mapping = json.loads(mapping_file.read_text(encoding="utf-8"))
         assert mapping[INVESTOR_GOV_STOCKS_URL]["status"] == "success"
 
         html_file = html_files[0]
@@ -56,8 +56,8 @@ class TestRagPipelineE2E:
         assert html_mapping_file.exists()
         assert scraper_mapping_file.exists()
 
-        html_mapping = json.loads(html_mapping_file.read_text())
-        scraper_mapping = json.loads(scraper_mapping_file.read_text())
+        html_mapping = json.loads(html_mapping_file.read_text(encoding="utf-8"))
+        scraper_mapping = json.loads(scraper_mapping_file.read_text(encoding="utf-8"))
         assert html_mapping[INVESTOR_GOV_STOCKS_URL]["status"] == "success"
         assert scraper_mapping[INVESTOR_GOV_STOCKS_URL]["status"] == "success"
 
@@ -129,7 +129,7 @@ class TestRagPipelineE2E:
 
         ccm = ChunkCacheManager(base_path=tmp_path)
         composite_key = ccm.make_cache_key(INVESTOR_GOV_STOCKS_URL, 500, 50)
-        mapping = json.loads(mapping_file.read_text())
+        mapping = json.loads(mapping_file.read_text(encoding="utf-8"))
         assert composite_key in mapping
         entry = mapping[composite_key]
         assert entry["status"] == "success"
@@ -172,7 +172,7 @@ class TestRagPipelineE2E:
         key_500 = ccm.make_cache_key(INVESTOR_GOV_STOCKS_URL, 500, 50)
         key_1000 = ccm.make_cache_key(INVESTOR_GOV_STOCKS_URL, 1000, 100)
 
-        chunk_mapping = json.loads((tmp_path / "chunk_cache" / "chunk_cache_mapping.json").read_text())
+        chunk_mapping = json.loads((tmp_path / "chunk_cache" / "chunk_cache_mapping.json").read_text(encoding="utf-8"))
         assert key_500 in chunk_mapping
         assert key_1000 in chunk_mapping
         assert chunk_mapping[key_500]["status"] == "success"
@@ -186,14 +186,14 @@ class TestRagPipelineE2E:
 
         file_500 = next(f for f in jsonl_files if "_c500_o50" in f.name)
         file_1000 = next(f for f in jsonl_files if "_c1000_o100" in f.name)
-        lines_500 = [l for l in file_500.read_text().splitlines() if l.strip()]
-        lines_1000 = [l for l in file_1000.read_text().splitlines() if l.strip()]
+        lines_500 = [l for l in file_500.read_text(encoding="utf-8").splitlines() if l.strip()]
+        lines_1000 = [l for l in file_1000.read_text(encoding="utf-8").splitlines() if l.strip()]
         assert len(lines_500) > 0
         assert len(lines_1000) > 0
         assert len(lines_1000) < len(lines_500), "Larger chunks should produce fewer chunks"
 
-        html_mapping = json.loads((tmp_path / "html_cache" / "html_cache_mapping.json").read_text())
+        html_mapping = json.loads((tmp_path / "html_cache" / "html_cache_mapping.json").read_text(encoding="utf-8"))
         assert len(html_mapping) == 1, "html_mapping should have exactly one entry (cache reuse)"
 
-        scraper_mapping = json.loads((tmp_path / "scraper_cache" / "scraper_cache_mapping.json").read_text())
+        scraper_mapping = json.loads((tmp_path / "scraper_cache" / "scraper_cache_mapping.json").read_text(encoding="utf-8"))
         assert len(scraper_mapping) == 1, "scraper_mapping should have exactly one entry (cache reuse)"

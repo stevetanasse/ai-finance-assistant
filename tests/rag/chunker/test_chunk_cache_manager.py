@@ -90,7 +90,7 @@ def test_write_chunks_creates_jsonl_file(cm):
 
 def test_write_chunks_writes_one_json_object_per_line(cm):
     path = cm.write_chunks(SAMPLE_CHUNKS, URL, 500, 50, "investor.gov", "scraper/stocks.txt", "recursive")
-    lines = [l for l in path.read_text().splitlines() if l.strip()]
+    lines = [l for l in path.read_text(encoding="utf-8").splitlines() if l.strip()]
     assert len(lines) == len(SAMPLE_CHUNKS)
     for line in lines:
         obj = json.loads(line)
@@ -100,19 +100,19 @@ def test_write_chunks_each_line_has_required_fields(cm):
     required = {"chunk_id", "url", "source_domain", "chunk_index", "total_chunks",
                 "text", "char_count", "chunk_size", "chunk_overlap", "strategy", "chunked_at"}
     path = cm.write_chunks(SAMPLE_CHUNKS, URL, 500, 50, "investor.gov", "scraper/stocks.txt", "recursive")
-    for line in [l for l in path.read_text().splitlines() if l.strip()]:
+    for line in [l for l in path.read_text(encoding="utf-8").splitlines() if l.strip()]:
         obj = json.loads(line)
         assert required.issubset(obj.keys()), f"Missing fields: {required - obj.keys()}"
 
 def test_write_chunks_chunk_index_is_sequential(cm):
     path = cm.write_chunks(SAMPLE_CHUNKS, URL, 500, 50, "investor.gov", "scraper/stocks.txt", "recursive")
-    objs = [json.loads(l) for l in path.read_text().splitlines() if l.strip()]
+    objs = [json.loads(l) for l in path.read_text(encoding="utf-8").splitlines() if l.strip()]
     indices = [o["chunk_index"] for o in objs]
     assert indices == list(range(len(SAMPLE_CHUNKS)))
 
 def test_write_chunks_total_chunks_is_consistent(cm):
     path = cm.write_chunks(SAMPLE_CHUNKS, URL, 500, 50, "investor.gov", "scraper/stocks.txt", "recursive")
-    objs = [json.loads(l) for l in path.read_text().splitlines() if l.strip()]
+    objs = [json.loads(l) for l in path.read_text(encoding="utf-8").splitlines() if l.strip()]
     for o in objs:
         assert o["total_chunks"] == len(SAMPLE_CHUNKS)
 
@@ -132,13 +132,13 @@ def test_read_chunks_round_trip(cm):
 def test_read_chunks_skips_blank_lines(cm, tmp_path):
     jsonl_path = tmp_path / "test.jsonl"
     lines = ['{"text": "a"}', "", '{"text": "b"}', "  ", '{"text": "c"}']
-    jsonl_path.write_text("\n".join(lines))
+    jsonl_path.write_text("\n".join(lines), encoding="utf-8")
     result = cm.read_chunks(jsonl_path)
     assert len(result) == 3
 
 def test_read_chunks_raises_value_error_on_bad_json(cm, tmp_path):
     jsonl_path = tmp_path / "bad.jsonl"
-    jsonl_path.write_text('{"text": "ok"}\nnot valid json\n{"text": "ok2"}')
+    jsonl_path.write_text('{"text": "ok"}\nnot valid json\n{"text": "ok2"}', encoding="utf-8")
     with pytest.raises(ValueError):
         cm.read_chunks(jsonl_path)
 

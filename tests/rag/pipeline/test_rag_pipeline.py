@@ -84,22 +84,22 @@ def test_https_url_returns_single_item_list():
 
 def test_file_with_three_urls_returns_list_of_three(tmp_path):
     url_file = tmp_path / "urls.txt"
-    url_file.write_text("https://a.com\nhttps://b.com\nhttps://c.com\n")
+    url_file.write_text("https://a.com\nhttps://b.com\nhttps://c.com\n", encoding="utf-8")
     assert resolve_urls(str(url_file)) == ["https://a.com", "https://b.com", "https://c.com"]
 
 def test_file_skips_blank_lines(tmp_path):
     url_file = tmp_path / "urls.txt"
-    url_file.write_text("https://a.com\n\nhttps://b.com\n\n")
+    url_file.write_text("https://a.com\n\nhttps://b.com\n\n", encoding="utf-8")
     assert resolve_urls(str(url_file)) == ["https://a.com", "https://b.com"]
 
 def test_file_skips_comment_lines(tmp_path):
     url_file = tmp_path / "urls.txt"
-    url_file.write_text("# comment\nhttps://a.com\n# another comment\nhttps://b.com\n")
+    url_file.write_text("# comment\nhttps://a.com\n# another comment\nhttps://b.com\n", encoding="utf-8")
     assert resolve_urls(str(url_file)) == ["https://a.com", "https://b.com"]
 
 def test_file_strips_whitespace_from_urls(tmp_path):
     url_file = tmp_path / "urls.txt"
-    url_file.write_text("  https://a.com  \n  https://b.com  \n")
+    url_file.write_text("  https://a.com  \n  https://b.com  \n", encoding="utf-8")
     assert resolve_urls(str(url_file)) == ["https://a.com", "https://b.com"]
 
 def test_non_url_nonexistent_path_raises_file_not_found():
@@ -108,7 +108,7 @@ def test_non_url_nonexistent_path_raises_file_not_found():
 
 def test_file_resolving_to_empty_raises_value_error(tmp_path):
     url_file = tmp_path / "empty.txt"
-    url_file.write_text("# only comments\n\n  \n")
+    url_file.write_text("# only comments\n\n  \n", encoding="utf-8")
     with pytest.raises(ValueError):
         resolve_urls(str(url_file))
 
