@@ -35,10 +35,36 @@ def resolve_urls(url_path: str) -> list[str]:
     return urls
 
 
+def validate_args(
+    action: str,
+    chunk_size: int | None,
+    chunk_overlap: int | None,
+) -> str | None:
+    """
+    Validates cross-argument constraints.
+    Returns an error message string if validation fails, None if valid.
+    """
+    if action != "chunk":
+        return None
+    if chunk_size is None:
+        return "Error: --chunk-size is required when --action is 'chunk'"
+    if chunk_overlap is None:
+        return "Error: --chunk-overlap is required when --action is 'chunk'"
+    if chunk_size is not None and chunk_overlap is not None and chunk_overlap >= chunk_size:
+        return "Error: --chunk-overlap must be less than --chunk-size"
+    if chunk_size is not None and chunk_size <= 0:
+        return "Error: --chunk-size must be greater than 0"
+    if chunk_overlap is not None and chunk_overlap < 0:
+        return "Error: --chunk-overlap must be non-negative"
+    return None
+
+
 def run(
     cache_path: Path,
     action: str,
     urls: list[str],
+    chunk_size: int | None = None,
+    chunk_overlap: int | None = None,
     force_refresh: bool = False,
     verbose: bool = False,
 ) -> int:
@@ -59,15 +85,44 @@ def run(
         html_mapping = dl.download_all(urls)
 
         scraper_mapping: dict = {}
-        if action == "scrape":
+        if action in ("scrape", "chunk"):
             scraper = HtmlScraper(cache_manager=cm)
             scraper_mapping = scraper.scrape_all(force_refresh=force_refresh)
+
+        chunk_mapping: dict = {}
+        if action == "chunk":
+            from src.rag.chunker import Chunker, ChunkCacheManager  # lazy import
+            chunk_cache_mgr = ChunkCacheManager(base_path=cache_path)
+            chunker = Chunker(
+                chunk_cache_manager=chunk_cache_mgr,
+                chunk_size=chunk_size,
+                chunk_overlap=chunk_overlap,
+            )
+            chunk_mapping = chunker.chunk_all(
+                scraper_mapping=scraper_mapping,
+                force_refresh=force_refresh,
+            )
 
         downloaded = sum(1 for e in html_mapping.values() if e.get("status") == "success")
         failed = sum(1 for e in html_mapping.values() if e.get("status") == "failed")
         scraped = sum(1 for e in scraper_mapping.values() if e.get("status") == "success")
+        chunked = sum(1 for e in chunk_mapping.values() if e.get("status") == "success")
+        total_chunks = sum(
+            e.get("total_chunks", 0)
+            for e in chunk_mapping.values()
+            if e.get("status") == "success"
+        )
 
-        print(f"[rag_pipeline] Done. Downloaded: {downloaded}, Scraped: {scraped}, Failed: {failed}")
+        if action == "download":
+            print(f"[rag_pipeline] Done. Downloaded: {downloaded}, Failed: {failed}")
+        elif action == "scrape":
+            print(f"[rag_pipeline] Done. Downloaded: {downloaded}, Scraped: {scraped}, Failed: {failed}")
+        else:
+            print(
+                f"[rag_pipeline] Done. Downloaded: {downloaded}, Scraped: {scraped}, "
+                f"Chunked: {chunked}, Total chunks: {total_chunks}, Failed: {failed}"
+            )
+
         return 0
     except Exception as e:
         print(f"[rag_pipeline] Error: {e}", file=sys.stderr)
@@ -87,13 +142,25 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--action",
         required=True,
-        choices=["download", "scrape"],
-        help="Pipeline action: 'download' or 'scrape'.",
+        choices=["download", "scrape", "chunk"],
+        help="Pipeline action: 'download', 'scrape', or 'chunk'.",
     )
     parser.add_argument(
         "--url-path",
         required=True,
         help="A single URL or a path to a file containing URLs (one per line).",
+    )
+    parser.add_argument(
+        "--chunk-size",
+        type=int,
+        default=None,
+        help="Number of characters per chunk. Required when --action is 'chunk'.",
+    )
+    parser.add_argument(
+        "--chunk-overlap",
+        type=int,
+        default=None,
+        help="Number of overlapping characters between chunks. Required when --action is 'chunk'.",
     )
     parser.add_argument(
         "--force-refresh",
@@ -114,6 +181,11 @@ def main() -> None:
     parser = _build_parser()
     args = parser.parse_args()
 
+    err = validate_args(args.action, args.chunk_size, args.chunk_overlap)
+    if err:
+        print(err, file=sys.stderr)
+        sys.exit(1)
+
     try:
         urls = resolve_urls(args.url_path)
     except (FileNotFoundError, ValueError) as e:
@@ -124,6 +196,8 @@ def main() -> None:
         cache_path=Path(args.cache_path),
         action=args.action,
         urls=urls,
+        chunk_size=args.chunk_size,
+        chunk_overlap=args.chunk_overlap,
         force_refresh=args.force_refresh,
         verbose=args.verbose,
     )

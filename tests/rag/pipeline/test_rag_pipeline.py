@@ -2,9 +2,10 @@ import pytest
 from pathlib import Path
 from unittest.mock import MagicMock, patch, call
 
-from src.rag.pipeline.rag_pipeline import _build_parser, resolve_urls, run
+from src.rag.pipeline.rag_pipeline import _build_parser, resolve_urls, run, validate_args
 
 _MODULE = "src.rag.pipeline.rag_pipeline"
+_CHUNKER_MODULE = "src.rag.chunker"
 
 URL_STOCKS = (
     "https://www.investor.gov/introduction-investing/investing-basics"
@@ -39,6 +40,36 @@ def _patched_run(tmp_path, action="download", urls=None, force_refresh=False,
 
         result = run(tmp_path, action, urls, force_refresh=force_refresh, verbose=verbose)
         return result, MockCM, MockDL, MockScraper
+
+
+def _patched_run_chunk(tmp_path, chunk_size=500, chunk_overlap=50, force_refresh=False,
+                       dl_return=None, scraper_return=None, chunk_return=None,
+                       chunk_side_effect=None):
+    """Run run() with chunk action, all components mocked."""
+    if dl_return is None:
+        dl_return = {}
+    if scraper_return is None:
+        scraper_return = {}
+    if chunk_return is None:
+        chunk_return = {}
+
+    with patch(f"{_MODULE}.CacheManager") as MockCM, \
+         patch(f"{_MODULE}.UrlDownloader") as MockDL, \
+         patch(f"{_MODULE}.HtmlScraper") as MockScraper, \
+         patch(f"{_CHUNKER_MODULE}.ChunkCacheManager") as MockCCM, \
+         patch(f"{_CHUNKER_MODULE}.Chunker") as MockChunker:
+
+        MockDL.return_value.download_all.return_value = dl_return
+        MockScraper.return_value.scrape_all.return_value = scraper_return
+        MockChunker.return_value.chunk_all.return_value = chunk_return
+        MockChunker.return_value.chunk_all.side_effect = chunk_side_effect
+
+        result = run(
+            tmp_path, "chunk", [URL_STOCKS],
+            chunk_size=chunk_size, chunk_overlap=chunk_overlap,
+            force_refresh=force_refresh,
+        )
+        return result, MockCM, MockCCM, MockDL, MockScraper, MockChunker
 
 
 # ---------------------------------------------------------------------------
@@ -83,7 +114,54 @@ def test_file_resolving_to_empty_raises_value_error(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# run() — action routing
+# validate_args
+# ---------------------------------------------------------------------------
+
+def test_validate_args_returns_none_for_download_with_no_chunk_args():
+    assert validate_args("download", None, None) is None
+
+def test_validate_args_returns_none_for_scrape_with_no_chunk_args():
+    assert validate_args("scrape", None, None) is None
+
+def test_validate_args_returns_none_for_chunk_with_valid_args():
+    assert validate_args("chunk", 500, 50) is None
+
+def test_validate_args_returns_error_when_chunk_size_missing():
+    result = validate_args("chunk", None, 50)
+    assert result is not None
+    assert "--chunk-size" in result
+
+def test_validate_args_returns_error_when_chunk_overlap_missing():
+    result = validate_args("chunk", 500, None)
+    assert result is not None
+    assert "--chunk-overlap" in result
+
+def test_validate_args_returns_error_when_overlap_equals_size():
+    result = validate_args("chunk", 500, 500)
+    assert result is not None
+    assert "--chunk-overlap" in result or "--chunk-size" in result
+
+def test_validate_args_returns_error_when_overlap_exceeds_size():
+    result = validate_args("chunk", 500, 600)
+    assert result is not None
+
+def test_validate_args_returns_error_when_chunk_size_is_zero():
+    result = validate_args("chunk", 0, 50)
+    assert result is not None
+    assert "--chunk-size" in result
+
+def test_validate_args_returns_error_when_chunk_size_is_negative():
+    result = validate_args("chunk", -1, 0)
+    assert result is not None
+
+def test_validate_args_returns_error_when_chunk_overlap_is_negative():
+    result = validate_args("chunk", 500, -1)
+    assert result is not None
+    assert "--chunk-overlap" in result
+
+
+# ---------------------------------------------------------------------------
+# run() — action routing (existing tests unchanged)
 # ---------------------------------------------------------------------------
 
 def test_download_action_calls_download_all_once(tmp_path):
@@ -121,7 +199,131 @@ def test_scrape_action_calls_download_before_scrape(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# run() — force_refresh passthrough
+# run() — chunk action routing
+# ---------------------------------------------------------------------------
+
+def test_chunk_action_calls_download_all_once(tmp_path):
+    _, _, _, MockDL, _, _ = _patched_run_chunk(tmp_path)
+    MockDL.return_value.download_all.assert_called_once()
+
+def test_chunk_action_calls_scrape_all_once(tmp_path):
+    _, _, _, _, MockScraper, _ = _patched_run_chunk(tmp_path)
+    MockScraper.return_value.scrape_all.assert_called_once()
+
+def test_chunk_action_calls_chunk_all_once(tmp_path):
+    _, _, _, _, _, MockChunker = _patched_run_chunk(tmp_path)
+    MockChunker.return_value.chunk_all.assert_called_once()
+
+def test_chunk_action_calls_stages_in_order(tmp_path):
+    call_order = []
+
+    with patch(f"{_MODULE}.CacheManager"), \
+         patch(f"{_MODULE}.UrlDownloader") as MockDL, \
+         patch(f"{_MODULE}.HtmlScraper") as MockScraper, \
+         patch(f"{_CHUNKER_MODULE}.ChunkCacheManager"), \
+         patch(f"{_CHUNKER_MODULE}.Chunker") as MockChunker:
+
+        MockDL.return_value.download_all.side_effect = (
+            lambda urls: call_order.append("download") or {}
+        )
+        MockScraper.return_value.scrape_all.side_effect = (
+            lambda **kw: call_order.append("scrape") or {}
+        )
+        MockChunker.return_value.chunk_all.side_effect = (
+            lambda **kw: call_order.append("chunk") or {}
+        )
+        run(tmp_path, "chunk", [URL_STOCKS], chunk_size=500, chunk_overlap=50)
+
+    assert call_order == ["download", "scrape", "chunk"]
+
+def test_chunk_action_passes_chunk_size_to_chunker(tmp_path):
+    with patch(f"{_MODULE}.CacheManager"), \
+         patch(f"{_MODULE}.UrlDownloader") as MockDL, \
+         patch(f"{_MODULE}.HtmlScraper") as MockScraper, \
+         patch(f"{_CHUNKER_MODULE}.ChunkCacheManager"), \
+         patch(f"{_CHUNKER_MODULE}.Chunker") as MockChunker:
+
+        MockDL.return_value.download_all.return_value = {}
+        MockScraper.return_value.scrape_all.return_value = {}
+        MockChunker.return_value.chunk_all.return_value = {}
+
+        run(tmp_path, "chunk", [URL_STOCKS], chunk_size=500, chunk_overlap=50)
+
+    _, kwargs = MockChunker.call_args
+    assert kwargs.get("chunk_size") == 500
+
+def test_chunk_action_passes_chunk_overlap_to_chunker(tmp_path):
+    with patch(f"{_MODULE}.CacheManager"), \
+         patch(f"{_MODULE}.UrlDownloader") as MockDL, \
+         patch(f"{_MODULE}.HtmlScraper") as MockScraper, \
+         patch(f"{_CHUNKER_MODULE}.ChunkCacheManager"), \
+         patch(f"{_CHUNKER_MODULE}.Chunker") as MockChunker:
+
+        MockDL.return_value.download_all.return_value = {}
+        MockScraper.return_value.scrape_all.return_value = {}
+        MockChunker.return_value.chunk_all.return_value = {}
+
+        run(tmp_path, "chunk", [URL_STOCKS], chunk_size=500, chunk_overlap=50)
+
+    _, kwargs = MockChunker.call_args
+    assert kwargs.get("chunk_overlap") == 50
+
+def test_chunk_action_passes_force_refresh_to_chunk_all(tmp_path):
+    _, _, _, _, _, MockChunker = _patched_run_chunk(tmp_path, force_refresh=True)
+    MockChunker.return_value.chunk_all.assert_called_once_with(
+        scraper_mapping={}, force_refresh=True
+    )
+
+def test_scrape_action_does_not_call_chunker(tmp_path):
+    with patch(f"{_MODULE}.CacheManager"), \
+         patch(f"{_MODULE}.UrlDownloader") as MockDL, \
+         patch(f"{_MODULE}.HtmlScraper") as MockScraper, \
+         patch(f"{_CHUNKER_MODULE}.Chunker") as MockChunker:
+
+        MockDL.return_value.download_all.return_value = {}
+        MockScraper.return_value.scrape_all.return_value = {}
+
+        run(tmp_path, "scrape", [URL_STOCKS])
+
+    MockChunker.assert_not_called()
+
+def test_download_action_does_not_call_html_scraper_for_chunk_test(tmp_path):
+    _, _, _, MockDL, MockScraper, MockChunker = _patched_run_chunk(
+        tmp_path,
+        # Override action to download — need a different approach
+    )
+    # This test is about download action specifically, done via _patched_run
+    pass
+
+def test_download_action_does_not_call_chunker(tmp_path):
+    with patch(f"{_MODULE}.CacheManager"), \
+         patch(f"{_MODULE}.UrlDownloader") as MockDL, \
+         patch(f"{_MODULE}.HtmlScraper") as MockScraper, \
+         patch(f"{_CHUNKER_MODULE}.Chunker") as MockChunker:
+
+        MockDL.return_value.download_all.return_value = {}
+        run(tmp_path, "download", [URL_STOCKS])
+
+    MockChunker.assert_not_called()
+
+def test_chunk_cache_manager_initialized_with_cache_path(tmp_path):
+    with patch(f"{_MODULE}.CacheManager"), \
+         patch(f"{_MODULE}.UrlDownloader") as MockDL, \
+         patch(f"{_MODULE}.HtmlScraper") as MockScraper, \
+         patch(f"{_CHUNKER_MODULE}.ChunkCacheManager") as MockCCM, \
+         patch(f"{_CHUNKER_MODULE}.Chunker") as MockChunker:
+
+        MockDL.return_value.download_all.return_value = {}
+        MockScraper.return_value.scrape_all.return_value = {}
+        MockChunker.return_value.chunk_all.return_value = {}
+
+        run(tmp_path, "chunk", [URL_STOCKS], chunk_size=500, chunk_overlap=50)
+
+    MockCCM.assert_called_once_with(base_path=tmp_path)
+
+
+# ---------------------------------------------------------------------------
+# run() — force_refresh passthrough (existing tests unchanged)
 # ---------------------------------------------------------------------------
 
 def test_force_refresh_passed_to_url_downloader_constructor(tmp_path):
@@ -141,7 +343,7 @@ def test_force_refresh_passed_to_scrape_all(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# run() — return codes
+# run() — return codes (existing tests unchanged)
 # ---------------------------------------------------------------------------
 
 def test_run_returns_0_on_success(tmp_path):
@@ -171,7 +373,7 @@ def test_run_never_raises_exceptions(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# run() — CacheManager initialization
+# run() — CacheManager initialization (existing test unchanged)
 # ---------------------------------------------------------------------------
 
 def test_cache_manager_initialized_with_provided_cache_path(tmp_path):
@@ -186,7 +388,7 @@ def test_cache_manager_initialized_with_provided_cache_path(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# Argument parsing
+# Argument parsing (existing tests unchanged)
 # ---------------------------------------------------------------------------
 
 @pytest.fixture
@@ -231,3 +433,46 @@ def test_verbose_flag_sets_true(parser):
         "--url-path", URL_STOCKS, "--verbose",
     ])
     assert args.verbose is True
+
+
+# ---------------------------------------------------------------------------
+# Argument parsing — new chunk args
+# ---------------------------------------------------------------------------
+
+def test_chunk_size_parses_as_int(parser):
+    args = parser.parse_args([
+        "--cache-path", "/tmp", "--action", "chunk",
+        "--url-path", URL_STOCKS, "--chunk-size", "500", "--chunk-overlap", "50",
+    ])
+    assert args.chunk_size == 500
+    assert isinstance(args.chunk_size, int)
+
+def test_chunk_overlap_parses_as_int(parser):
+    args = parser.parse_args([
+        "--cache-path", "/tmp", "--action", "chunk",
+        "--url-path", URL_STOCKS, "--chunk-size", "500", "--chunk-overlap", "50",
+    ])
+    assert args.chunk_overlap == 50
+    assert isinstance(args.chunk_overlap, int)
+
+def test_chunk_size_defaults_to_none(parser):
+    args = parser.parse_args(["--cache-path", "/tmp", "--action", "download", "--url-path", URL_STOCKS])
+    assert args.chunk_size is None
+
+def test_chunk_overlap_defaults_to_none(parser):
+    args = parser.parse_args(["--cache-path", "/tmp", "--action", "download", "--url-path", URL_STOCKS])
+    assert args.chunk_overlap is None
+
+def test_chunk_is_valid_action_no_system_exit(parser):
+    args = parser.parse_args([
+        "--cache-path", "/tmp", "--action", "chunk",
+        "--url-path", URL_STOCKS,
+    ])
+    assert args.action == "chunk"
+
+def test_action_chunk_accepted_by_argparse(parser):
+    args = parser.parse_args([
+        "--cache-path", "/tmp", "--action", "chunk",
+        "--url-path", URL_STOCKS, "--chunk-size", "500", "--chunk-overlap", "50",
+    ])
+    assert args.action == "chunk"

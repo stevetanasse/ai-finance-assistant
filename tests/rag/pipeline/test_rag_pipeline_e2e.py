@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from src.rag.pipeline.rag_pipeline import run
+from src.rag.chunker.chunk_cache_manager import ChunkCacheManager
 
 INVESTOR_GOV_STOCKS_URL = (
     "https://www.investor.gov/introduction-investing/"
@@ -105,3 +106,94 @@ class TestRagPipelineE2E:
         assert mtime_after > mtime_before, (
             "HTML file modification time should change when force_refresh=True"
         )
+
+    def test_chunk_action_creates_all_three_caches(self, tmp_path):
+        code = run(
+            cache_path=tmp_path,
+            action="chunk",
+            urls=[INVESTOR_GOV_STOCKS_URL],
+            chunk_size=500,
+            chunk_overlap=50,
+        )
+
+        assert code == 0
+        assert (tmp_path / "html_cache" / "investor.gov").is_dir()
+        assert (tmp_path / "scraper_cache" / "investor.gov").is_dir()
+        assert (tmp_path / "chunk_cache" / "investor.gov").is_dir()
+
+        jsonl_files = list((tmp_path / "chunk_cache" / "investor.gov").glob("*.jsonl"))
+        assert len(jsonl_files) >= 1
+
+        mapping_file = tmp_path / "chunk_cache" / "chunk_cache_mapping.json"
+        assert mapping_file.exists()
+
+        ccm = ChunkCacheManager(base_path=tmp_path)
+        composite_key = ccm.make_cache_key(INVESTOR_GOV_STOCKS_URL, 500, 50)
+        mapping = json.loads(mapping_file.read_text())
+        assert composite_key in mapping
+        entry = mapping[composite_key]
+        assert entry["status"] == "success"
+        assert entry["total_chunks"] >= 1
+
+        jsonl_file = jsonl_files[0]
+        assert jsonl_file.stat().st_size > 0
+        lines = [l for l in jsonl_file.read_text(encoding="utf-8").splitlines() if l.strip()]
+        assert len(lines) >= 1
+
+        required_fields = {"chunk_id", "url", "text", "chunk_index", "total_chunks",
+                           "chunk_size", "chunk_overlap"}
+        for line in lines:
+            obj = json.loads(line)
+            assert required_fields.issubset(obj.keys()), f"Missing fields: {required_fields - obj.keys()}"
+            assert obj["chunk_size"] == 500
+            assert obj["chunk_overlap"] == 50
+            assert len(obj["text"]) > 0, "text field must not be empty"
+
+    def test_two_chunk_runs_create_separate_cache_entries(self, tmp_path):
+        code1 = run(
+            cache_path=tmp_path,
+            action="chunk",
+            urls=[INVESTOR_GOV_STOCKS_URL],
+            chunk_size=500,
+            chunk_overlap=50,
+        )
+        code2 = run(
+            cache_path=tmp_path,
+            action="chunk",
+            urls=[INVESTOR_GOV_STOCKS_URL],
+            chunk_size=1000,
+            chunk_overlap=100,
+        )
+
+        assert code1 == 0
+        assert code2 == 0
+
+        ccm = ChunkCacheManager(base_path=tmp_path)
+        key_500 = ccm.make_cache_key(INVESTOR_GOV_STOCKS_URL, 500, 50)
+        key_1000 = ccm.make_cache_key(INVESTOR_GOV_STOCKS_URL, 1000, 100)
+
+        chunk_mapping = json.loads((tmp_path / "chunk_cache" / "chunk_cache_mapping.json").read_text())
+        assert key_500 in chunk_mapping
+        assert key_1000 in chunk_mapping
+        assert chunk_mapping[key_500]["status"] == "success"
+        assert chunk_mapping[key_1000]["status"] == "success"
+
+        jsonl_files = list((tmp_path / "chunk_cache" / "investor.gov").glob("*.jsonl"))
+        assert len(jsonl_files) == 2
+        names = {f.name for f in jsonl_files}
+        assert any("_c500_o50" in n for n in names)
+        assert any("_c1000_o100" in n for n in names)
+
+        file_500 = next(f for f in jsonl_files if "_c500_o50" in f.name)
+        file_1000 = next(f for f in jsonl_files if "_c1000_o100" in f.name)
+        lines_500 = [l for l in file_500.read_text().splitlines() if l.strip()]
+        lines_1000 = [l for l in file_1000.read_text().splitlines() if l.strip()]
+        assert len(lines_500) > 0
+        assert len(lines_1000) > 0
+        assert len(lines_1000) < len(lines_500), "Larger chunks should produce fewer chunks"
+
+        html_mapping = json.loads((tmp_path / "html_cache" / "html_cache_mapping.json").read_text())
+        assert len(html_mapping) == 1, "html_mapping should have exactly one entry (cache reuse)"
+
+        scraper_mapping = json.loads((tmp_path / "scraper_cache" / "scraper_cache_mapping.json").read_text())
+        assert len(scraper_mapping) == 1, "scraper_mapping should have exactly one entry (cache reuse)"
