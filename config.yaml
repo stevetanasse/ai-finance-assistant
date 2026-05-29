@@ -29,3 +29,9 @@ paths:
   rag_caches_dir: "rag_caches"
   html_cache_dir: "rag_caches/html_cache"
   scraper_cache_dir: "rag_caches/scraper_cache"
+  chunk_cache_dir: "rag_caches/chunk_cache"
+
+chunking:
+  default_chunk_size: 500
+  default_chunk_overlap: 50
+  default_strategy: "recursive"
