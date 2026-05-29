@@ -29,8 +29,8 @@ class HtmlScraper:
 
             html_path = Path(entry["file_path"])
             scraper_path = (
-                Path("scraper_cache")
-                / html_path.relative_to("html_cache").with_suffix(".txt")
+                self.cache_manager.scraper_cache_dir
+                / html_path.relative_to(self.cache_manager.html_cache_dir).with_suffix(".txt")
             )
             scraper_path.parent.mkdir(parents=True, exist_ok=True)
             scraper_path.write_text(text, encoding="utf-8")

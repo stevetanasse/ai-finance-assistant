@@ -24,3 +24,8 @@ app:
   host: localhost
   port: 8501
   debug: false
+
+paths:
+  rag_caches_dir: "rag_caches"
+  html_cache_dir: "rag_caches/html_cache"
+  scraper_cache_dir: "rag_caches/scraper_cache"

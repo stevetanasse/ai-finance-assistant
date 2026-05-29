@@ -41,11 +41,11 @@ class UrlDownloader:
         if domain.startswith("www."):
             domain = domain[4:]
 
-        cache_path = self.cache_manager.get_cache_filepath(url, "html_cache")
+        cache_path = self.cache_manager.get_cache_filepath(url, self.cache_manager.html_cache_dir)
 
         entry: dict = {
             "file_path": str(cache_path),
-            "scraped_path": str(self.cache_manager.get_cache_filepath(url, "scraper_cache")),
+            "scraped_path": str(self.cache_manager.get_cache_filepath(url, self.cache_manager.scraper_cache_dir)),
             "downloaded_at": None,
             "scraped_at": None,
             "status": "failed",

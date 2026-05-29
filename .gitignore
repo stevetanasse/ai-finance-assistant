@@ -20,11 +20,10 @@ venv/
 .vscode/
 .idea/
 
-# Scraper caches (keep .gitkeep, ignore everything else)
-html_cache/*
-!html_cache/.gitkeep
-scraper_cache/*
-!scraper_cache/.gitkeep
+# Scraper caches (keep .gitkeep files, ignore everything else)
+rag_caches/
+!rag_caches/html_cache/.gitkeep
+!rag_caches/scraper_cache/.gitkeep
 
 # OS
 .DS_Store

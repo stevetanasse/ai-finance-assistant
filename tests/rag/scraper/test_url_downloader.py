@@ -30,9 +30,8 @@ def _mock_response(status_code=200, text="<html><body><p>Content</p></body></htm
 
 
 @pytest.fixture
-def cm(monkeypatch, tmp_path):
-    monkeypatch.chdir(tmp_path)
-    return CacheManager()
+def cm(tmp_path):
+    return CacheManager(base_path=tmp_path)
 
 
 @pytest.fixture
@@ -59,7 +58,7 @@ def test_successful_download_populates_all_rich_fields(downloader):
     assert entry["error_message"] is None
     assert entry["file_path"] is not None
 
-def test_successful_download_writes_html_file(downloader, tmp_path):
+def test_successful_download_writes_html_file(downloader):
     with patch.object(downloader.session, "get", return_value=_mock_response()):
         entry = downloader.download_url(URL)
     assert Path(entry["file_path"]).exists()
