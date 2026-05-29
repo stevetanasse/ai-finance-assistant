@@ -13,3 +13,9 @@ dependencies = [
     "python-slugify>=8.0.4",
     "requests>=2.34.2",
 ]
+
+[tool.pytest.ini_options]
+markers = [
+    "integration: marks tests that make real network calls (deselect with '-m not integration')",
+]
+addopts = "-m 'not integration'"
