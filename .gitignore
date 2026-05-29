@@ -20,6 +20,12 @@ venv/
 .vscode/
 .idea/
 
+# Scraper caches (keep .gitkeep, ignore everything else)
+html_cache/*
+!html_cache/.gitkeep
+scraper_cache/*
+!scraper_cache/.gitkeep
+
 # OS
 .DS_Store
 Thumbs.db
