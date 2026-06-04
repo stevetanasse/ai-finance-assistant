@@ -8,6 +8,8 @@ from qdrant_client.models import (
     Filter,
     MatchValue,
     PointStruct,
+    SparseVector,
+    SparseVectorParams,
     VectorParams,
 )
 
@@ -47,7 +49,7 @@ class QdrantManager:
     def create_collection(
         self,
         collection_name: str,
-        vector_size: int,
+        dense_vector_size: int,
         distance: str = "cosine",
         recreate: bool = False,
     ) -> None:
@@ -58,10 +60,15 @@ class QdrantManager:
                 return
         self._client.create_collection(
             collection_name=collection_name,
-            vectors_config=VectorParams(
-                size=vector_size,
-                distance=DISTANCE_MAP[distance],
-            ),
+            vectors_config={
+                "dense": VectorParams(
+                    size=dense_vector_size,
+                    distance=DISTANCE_MAP[distance],
+                ),
+            },
+            sparse_vectors_config={
+                "sparse": SparseVectorParams(),
+            },
         )
 
     def upsert_points(self, collection_name: str, points: list[dict]) -> None:
@@ -70,7 +77,13 @@ class QdrantManager:
             points=[
                 PointStruct(
                     id=self._make_point_id(p["id"]),
-                    vector=p["vector"],
+                    vector={
+                        "dense": p["dense_vector"],
+                        "sparse": SparseVector(
+                            indices=p["sparse_vector"]["indices"],
+                            values=p["sparse_vector"]["values"],
+                        ),
+                    },
                     payload=p["payload"],
                 )
                 for p in points
@@ -80,40 +93,69 @@ class QdrantManager:
     def _make_point_id(self, id_str: str) -> str:
         return str(uuid.uuid5(_NAMESPACE, str(id_str)))
 
-    def query(
+    def _build_filter(self, filters: dict | None) -> Filter | None:
+        if not filters:
+            return None
+        return Filter(
+            must=[
+                FieldCondition(key=k, match=MatchValue(value=v))
+                for k, v in filters.items()
+            ]
+        )
+
+    def _format_results(self, results) -> list[dict]:
+        return [
+            {"id": str(r.id), "score": r.score, "payload": r.payload}
+            for r in results
+        ]
+
+    def query_dense(
         self,
         collection_name: str,
         query_vector: list[float],
         top_k: int = 3,
         filters: dict | None = None,
     ) -> list[dict]:
-        qdrant_filter = None
-        if filters:
-            qdrant_filter = Filter(
-                must=[
-                    FieldCondition(key=k, match=MatchValue(value=v))
-                    for k, v in filters.items()
-                ]
-            )
         response = self._client.query_points(
             collection_name=collection_name,
             query=query_vector,
+            using="dense",
             limit=top_k,
-            query_filter=qdrant_filter,
+            query_filter=self._build_filter(filters),
             with_payload=True,
         )
-        return [
-            {"id": str(r.id), "score": r.score, "payload": r.payload}
-            for r in response.points
-        ]
+        return self._format_results(response.points)
+
+    def query_sparse(
+        self,
+        collection_name: str,
+        query_sparse_vector: dict,
+        top_k: int = 3,
+        filters: dict | None = None,
+    ) -> list[dict]:
+        response = self._client.query_points(
+            collection_name=collection_name,
+            query=SparseVector(
+                indices=query_sparse_vector["indices"],
+                values=query_sparse_vector["values"],
+            ),
+            using="sparse",
+            limit=top_k,
+            query_filter=self._build_filter(filters),
+            with_payload=True,
+        )
+        return self._format_results(response.points)
 
     def get_collection_info(self, collection_name: str) -> dict:
         info = self._client.get_collection(collection_name)
+        vectors = info.config.params.vectors
+        dense_config = vectors.get("dense") if isinstance(vectors, dict) else vectors
         return {
             "name": collection_name,
             "vector_count": info.points_count or 0,
-            "vector_size": info.config.params.vectors.size,
-            "distance": str(info.config.params.vectors.distance),
+            "dense_vector_size": dense_config.size if dense_config else None,
+            "distance": str(dense_config.distance) if dense_config else None,
+            "has_sparse_vectors": info.config.params.sparse_vectors is not None,
         }
 
     def list_collections(self) -> list[str]:

@@ -31,9 +31,23 @@ class FastEmbedEmbedder(BaseEmbedder):
     def embed_query(self, text: str) -> list[float]:
         return list(self._model.embed([text]))[0].tolist()
 
+    def embed_sparse(self, texts: list[str]) -> list[dict]:
+        raise NotImplementedError(
+            "FastEmbedEmbedder does not support sparse embeddings. Use BM42Embedder for sparse."
+        )
+
+    def embed_sparse_query(self, text: str) -> dict:
+        raise NotImplementedError(
+            "FastEmbedEmbedder does not support sparse embeddings. Use BM42Embedder for sparse."
+        )
+
     @property
     def model_name(self) -> str:
         return self._short_name
+
+    @property
+    def sparse_model_name(self) -> None:
+        return None
 
     @property
     def vector_size(self) -> int:
