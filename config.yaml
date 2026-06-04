@@ -30,8 +30,14 @@ paths:
   html_cache_dir: "rag_caches/html_cache"
   scraper_cache_dir: "rag_caches/scraper_cache"
   chunk_cache_dir: "rag_caches/chunk_cache"
+  qdrant_storage_dir: "rag_caches/qdrant_storage"
 
 chunking:
   default_chunk_size: 500
   default_chunk_overlap: 50
   default_strategy: "recursive"
+
+embedding:
+  default_model: "bge-small-en-v1.5"
+  default_collection_prefix: "fin"
+  qdrant_distance: "cosine"

@@ -25,6 +25,7 @@ rag_caches/
 !rag_caches/html_cache/.gitkeep
 !rag_caches/scraper_cache/.gitkeep
 !rag_caches/chunk_cache/.gitkeep
+!rag_caches/qdrant_storage/.gitkeep
 
 # OS
 .DS_Store

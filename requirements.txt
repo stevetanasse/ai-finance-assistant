@@ -11,3 +11,5 @@ python-dotenv
 lxml
 python-slugify
 langchain-text-splitters
+qdrant-client
+fastembed
