@@ -6,6 +6,9 @@ from src.rag.pipeline.rag_pipeline import _build_parser, resolve_urls, run, vali
 
 _MODULE = "src.rag.pipeline.rag_pipeline"
 _CHUNKER_MODULE = "src.rag.chunker"
+_EMBEDDING_PIPELINE_MODULE = "src.rag.embedder.embedding_pipeline"
+_EMBEDDING_CACHE_MODULE = "src.rag.embedder.embedding_cache_manager"
+_QDRANT_MODULE = "src.rag.embedder.qdrant_manager"
 
 URL_STOCKS = (
     "https://www.investor.gov/introduction-investing/investing-basics"
@@ -72,6 +75,49 @@ def _patched_run_chunk(tmp_path, chunk_size=500, chunk_overlap=50, force_refresh
         return result, MockCM, MockCCM, MockDL, MockScraper, MockChunker
 
 
+def _patched_run_embed(tmp_path, chunk_size=500, chunk_overlap=50,
+                       dense_embed="bge-small", sparse_embed="bm42",
+                       force_refresh=False, dl_return=None, scraper_return=None,
+                       chunk_return=None, embed_return=None, embed_side_effect=None):
+    """Run run() with embed action, all components (including embedding stage) mocked."""
+    if dl_return is None:
+        dl_return = {}
+    if scraper_return is None:
+        scraper_return = {}
+    if chunk_return is None:
+        chunk_return = {}
+    if embed_return is None:
+        embed_return = {}
+
+    with patch(f"{_MODULE}.CacheManager") as MockCM, \
+         patch(f"{_MODULE}.UrlDownloader") as MockDL, \
+         patch(f"{_MODULE}.HtmlScraper") as MockScraper, \
+         patch(f"{_CHUNKER_MODULE}.ChunkCacheManager") as MockCCM, \
+         patch(f"{_CHUNKER_MODULE}.Chunker") as MockChunker, \
+         patch(f"{_EMBEDDING_PIPELINE_MODULE}.EmbeddingPipeline") as MockEmbeddingPipeline, \
+         patch(f"{_EMBEDDING_CACHE_MODULE}.EmbeddingCacheManager") as MockEmbCacheMgr, \
+         patch(f"{_QDRANT_MODULE}.QdrantManager") as MockQdrantMgr, \
+         patch(f"{_EMBEDDING_PIPELINE_MODULE}.DENSE_EMBEDDER_REGISTRY", {dense_embed: MagicMock()}) as MockDenseRegistry, \
+         patch(f"{_EMBEDDING_PIPELINE_MODULE}.SPARSE_EMBEDDER_REGISTRY", {sparse_embed: MagicMock()}) as MockSparseRegistry:
+
+        MockDL.return_value.download_all.return_value = dl_return
+        MockScraper.return_value.scrape_all.return_value = scraper_return
+        MockChunker.return_value.chunk_all.return_value = chunk_return
+        MockEmbeddingPipeline.return_value.embed_all.return_value = embed_return
+        MockEmbeddingPipeline.return_value.embed_all.side_effect = embed_side_effect
+
+        result = run(
+            tmp_path, "embed", [URL_STOCKS],
+            chunk_size=chunk_size, chunk_overlap=chunk_overlap,
+            dense_embed=dense_embed, sparse_embed=sparse_embed,
+            force_refresh=force_refresh,
+        )
+        return (
+            result, MockCM, MockDL, MockScraper, MockChunker,
+            MockEmbeddingPipeline, MockEmbCacheMgr, MockQdrantMgr,
+        )
+
+
 # ---------------------------------------------------------------------------
 # resolve_urls
 # ---------------------------------------------------------------------------
@@ -118,46 +164,107 @@ def test_file_resolving_to_empty_raises_value_error(tmp_path):
 # ---------------------------------------------------------------------------
 
 def test_validate_args_returns_none_for_download_with_no_chunk_args():
-    assert validate_args("download", None, None) is None
+    assert validate_args("download", None, None, None, None) is None
 
 def test_validate_args_returns_none_for_scrape_with_no_chunk_args():
-    assert validate_args("scrape", None, None) is None
+    assert validate_args("scrape", None, None, None, None) is None
 
 def test_validate_args_returns_none_for_chunk_with_valid_args():
-    assert validate_args("chunk", 500, 50) is None
+    assert validate_args("chunk", 500, 50, None, None) is None
 
 def test_validate_args_returns_error_when_chunk_size_missing():
-    result = validate_args("chunk", None, 50)
+    result = validate_args("chunk", None, 50, None, None)
     assert result is not None
     assert "--chunk-size" in result
 
 def test_validate_args_returns_error_when_chunk_overlap_missing():
-    result = validate_args("chunk", 500, None)
+    result = validate_args("chunk", 500, None, None, None)
     assert result is not None
     assert "--chunk-overlap" in result
 
 def test_validate_args_returns_error_when_overlap_equals_size():
-    result = validate_args("chunk", 500, 500)
+    result = validate_args("chunk", 500, 500, None, None)
     assert result is not None
     assert "--chunk-overlap" in result or "--chunk-size" in result
 
 def test_validate_args_returns_error_when_overlap_exceeds_size():
-    result = validate_args("chunk", 500, 600)
+    result = validate_args("chunk", 500, 600, None, None)
     assert result is not None
 
 def test_validate_args_returns_error_when_chunk_size_is_zero():
-    result = validate_args("chunk", 0, 50)
+    result = validate_args("chunk", 0, 50, None, None)
     assert result is not None
     assert "--chunk-size" in result
 
 def test_validate_args_returns_error_when_chunk_size_is_negative():
-    result = validate_args("chunk", -1, 0)
+    result = validate_args("chunk", -1, 0, None, None)
     assert result is not None
 
 def test_validate_args_returns_error_when_chunk_overlap_is_negative():
-    result = validate_args("chunk", 500, -1)
+    result = validate_args("chunk", 500, -1, None, None)
     assert result is not None
     assert "--chunk-overlap" in result
+
+
+# ---------------------------------------------------------------------------
+# validate_args — embed action
+# ---------------------------------------------------------------------------
+
+def test_validate_args_returns_none_for_embed_with_valid_args():
+    assert validate_args("embed", 500, 50, "bge-small", "bm42") is None
+
+def test_validate_args_returns_none_for_chunk_with_embed_args_none():
+    assert validate_args("chunk", 500, 50, None, None) is None
+
+def test_validate_args_returns_none_for_download_with_embed_args_none():
+    assert validate_args("download", None, None, None, None) is None
+
+def test_validate_args_returns_error_when_embed_chunk_size_missing():
+    result = validate_args("embed", None, 50, "bge-small", "bm42")
+    assert result is not None
+    assert "--chunk-size" in result
+
+def test_validate_args_returns_error_when_embed_chunk_overlap_missing():
+    result = validate_args("embed", 500, None, "bge-small", "bm42")
+    assert result is not None
+    assert "--chunk-overlap" in result
+
+def test_validate_args_returns_error_when_embed_chunk_size_is_zero():
+    result = validate_args("embed", 0, 50, "bge-small", "bm42")
+    assert result is not None
+    assert "--chunk-size" in result
+
+def test_validate_args_returns_error_when_embed_chunk_overlap_is_negative():
+    result = validate_args("embed", 500, -1, "bge-small", "bm42")
+    assert result is not None
+    assert "--chunk-overlap" in result
+
+def test_validate_args_returns_error_when_embed_overlap_exceeds_size():
+    result = validate_args("embed", 500, 600, "bge-small", "bm42")
+    assert result is not None
+    assert "--chunk-overlap" in result
+
+def test_validate_args_returns_error_when_dense_embed_missing():
+    result = validate_args("embed", 500, 50, None, "bm42")
+    assert result is not None
+    assert "--dense-embed" in result
+
+def test_validate_args_returns_error_when_sparse_embed_missing():
+    result = validate_args("embed", 500, 50, "bge-small", None)
+    assert result is not None
+    assert "--sparse-embed" in result
+
+def test_validate_args_returns_error_when_dense_embed_unrecognized():
+    result = validate_args("embed", 500, 50, "bad-model", "bm42")
+    assert result is not None
+    assert "--dense-embed" in result
+    assert "bad-model" in result
+
+def test_validate_args_returns_error_when_sparse_embed_unrecognized():
+    result = validate_args("embed", 500, 50, "bge-small", "bad-model")
+    assert result is not None
+    assert "--sparse-embed" in result
+    assert "bad-model" in result
 
 
 # ---------------------------------------------------------------------------
@@ -323,6 +430,100 @@ def test_chunk_cache_manager_initialized_with_cache_path(tmp_path):
 
 
 # ---------------------------------------------------------------------------
+# run() — embed action routing
+# ---------------------------------------------------------------------------
+
+def test_embed_action_calls_download_all_once(tmp_path):
+    _, _, MockDL, _, _, _, _, _ = _patched_run_embed(tmp_path)
+    MockDL.return_value.download_all.assert_called_once()
+
+def test_embed_action_calls_scrape_all_once(tmp_path):
+    _, _, _, MockScraper, _, _, _, _ = _patched_run_embed(tmp_path)
+    MockScraper.return_value.scrape_all.assert_called_once()
+
+def test_embed_action_calls_chunk_all_once(tmp_path):
+    _, _, _, _, MockChunker, _, _, _ = _patched_run_embed(tmp_path)
+    MockChunker.return_value.chunk_all.assert_called_once()
+
+def test_embed_action_calls_embed_all_once(tmp_path):
+    _, _, _, _, _, MockEmbeddingPipeline, _, _ = _patched_run_embed(tmp_path)
+    MockEmbeddingPipeline.return_value.embed_all.assert_called_once()
+
+def test_embed_action_calls_stages_in_order(tmp_path):
+    call_order = []
+    dense_embed, sparse_embed = "bge-small", "bm42"
+
+    with patch(f"{_MODULE}.CacheManager"), \
+         patch(f"{_MODULE}.UrlDownloader") as MockDL, \
+         patch(f"{_MODULE}.HtmlScraper") as MockScraper, \
+         patch(f"{_CHUNKER_MODULE}.ChunkCacheManager"), \
+         patch(f"{_CHUNKER_MODULE}.Chunker") as MockChunker, \
+         patch(f"{_EMBEDDING_PIPELINE_MODULE}.EmbeddingPipeline") as MockEmbeddingPipeline, \
+         patch(f"{_EMBEDDING_CACHE_MODULE}.EmbeddingCacheManager"), \
+         patch(f"{_QDRANT_MODULE}.QdrantManager"), \
+         patch(f"{_EMBEDDING_PIPELINE_MODULE}.DENSE_EMBEDDER_REGISTRY", {dense_embed: MagicMock()}), \
+         patch(f"{_EMBEDDING_PIPELINE_MODULE}.SPARSE_EMBEDDER_REGISTRY", {sparse_embed: MagicMock()}):
+
+        MockDL.return_value.download_all.side_effect = (
+            lambda urls: call_order.append("download") or {}
+        )
+        MockScraper.return_value.scrape_all.side_effect = (
+            lambda **kw: call_order.append("scrape") or {}
+        )
+        MockChunker.return_value.chunk_all.side_effect = (
+            lambda **kw: call_order.append("chunk") or {}
+        )
+        MockEmbeddingPipeline.return_value.embed_all.side_effect = (
+            lambda **kw: call_order.append("embed") or {}
+        )
+        run(
+            tmp_path, "embed", [URL_STOCKS],
+            chunk_size=500, chunk_overlap=50,
+            dense_embed=dense_embed, sparse_embed=sparse_embed,
+        )
+
+    assert call_order == ["download", "scrape", "chunk", "embed"]
+
+def test_embed_action_passes_force_refresh_to_embed_all(tmp_path):
+    _, _, _, _, _, MockEmbeddingPipeline, _, _ = _patched_run_embed(tmp_path, force_refresh=True)
+    MockEmbeddingPipeline.return_value.embed_all.assert_called_once_with(
+        chunk_mapping={}, force_refresh=True
+    )
+
+def test_embed_action_passes_cache_path_qdrant_storage_to_qdrant_manager(tmp_path):
+    _, _, _, _, _, _, _, MockQdrantMgr = _patched_run_embed(tmp_path)
+    MockQdrantMgr.assert_called_once_with(
+        storage_path=tmp_path / "qdrant_storage", in_memory=False
+    )
+
+def test_chunk_action_does_not_call_embedding_pipeline(tmp_path):
+    with patch(f"{_EMBEDDING_PIPELINE_MODULE}.EmbeddingPipeline") as MockEmbeddingPipeline:
+        _patched_run_chunk(tmp_path)
+    MockEmbeddingPipeline.assert_not_called()
+
+def test_scrape_action_does_not_call_embedding_pipeline(tmp_path):
+    with patch(f"{_EMBEDDING_PIPELINE_MODULE}.EmbeddingPipeline") as MockEmbeddingPipeline:
+        _patched_run(tmp_path, action="scrape")
+    MockEmbeddingPipeline.assert_not_called()
+
+def test_run_returns_0_when_embed_action_succeeds(tmp_path):
+    result, _, _, _, _, _, _, _ = _patched_run_embed(tmp_path)
+    assert result == 0
+
+def test_run_returns_1_when_embedding_pipeline_raises(tmp_path):
+    result, _, _, _, _, _, _, _ = _patched_run_embed(
+        tmp_path, embed_side_effect=RuntimeError("embedding error"),
+    )
+    assert result == 1
+
+def test_run_never_raises_when_embedding_pipeline_raises(tmp_path):
+    result, _, _, _, _, _, _, _ = _patched_run_embed(
+        tmp_path, embed_side_effect=Exception("unexpected"),
+    )
+    assert result == 1
+
+
+# ---------------------------------------------------------------------------
 # run() — force_refresh passthrough (existing tests unchanged)
 # ---------------------------------------------------------------------------
 
@@ -476,3 +677,42 @@ def test_action_chunk_accepted_by_argparse(parser):
         "--url-path", URL_STOCKS, "--chunk-size", "500", "--chunk-overlap", "50",
     ])
     assert args.action == "chunk"
+
+
+# ---------------------------------------------------------------------------
+# Argument parsing — new embed args
+# ---------------------------------------------------------------------------
+
+def test_dense_embed_parses_as_str(parser):
+    args = parser.parse_args([
+        "--cache-path", "/tmp", "--action", "embed", "--url-path", URL_STOCKS,
+        "--chunk-size", "500", "--chunk-overlap", "50",
+        "--dense-embed", "bge-small", "--sparse-embed", "bm42",
+    ])
+    assert args.dense_embed == "bge-small"
+    assert isinstance(args.dense_embed, str)
+
+def test_sparse_embed_parses_as_str(parser):
+    args = parser.parse_args([
+        "--cache-path", "/tmp", "--action", "embed", "--url-path", URL_STOCKS,
+        "--chunk-size", "500", "--chunk-overlap", "50",
+        "--dense-embed", "bge-small", "--sparse-embed", "bm42",
+    ])
+    assert args.sparse_embed == "bm42"
+    assert isinstance(args.sparse_embed, str)
+
+def test_dense_embed_defaults_to_none(parser):
+    args = parser.parse_args(["--cache-path", "/tmp", "--action", "download", "--url-path", URL_STOCKS])
+    assert args.dense_embed is None
+
+def test_sparse_embed_defaults_to_none(parser):
+    args = parser.parse_args(["--cache-path", "/tmp", "--action", "download", "--url-path", URL_STOCKS])
+    assert args.sparse_embed is None
+
+def test_action_embed_accepted_by_argparse(parser):
+    args = parser.parse_args([
+        "--cache-path", "/tmp", "--action", "embed", "--url-path", URL_STOCKS,
+        "--chunk-size", "500", "--chunk-overlap", "50",
+        "--dense-embed", "bge-small", "--sparse-embed", "bm42",
+    ])
+    assert args.action == "embed"
