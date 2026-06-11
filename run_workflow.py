@@ -8,13 +8,17 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from langchain_core.messages import HumanMessage
+from langchain_openai import ChatOpenAI
 
-from src.workflow.graph import compiled_graph
+from src.workflow.graph import build_graph
 
 THREAD_ID = "finance-assistant-thread-1"
 
 
 def main():
+    llm = ChatOpenAI(model="gpt-4o-mini")
+    compiled_graph = build_graph(llm)
+
     config = {"configurable": {"thread_id": THREAD_ID}}
 
     while True:

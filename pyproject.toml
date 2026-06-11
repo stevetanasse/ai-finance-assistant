@@ -11,6 +11,7 @@ dependencies = [
     "langchain-text-splitters>=1.1.2",
     "langgraph>=1.2.4",
     "lxml>=6.1.1",
+    "pydantic>=2.13.4",
     "pytest>=9.0.3",
     "pytest-cov>=7.1.0",
     "python-dotenv>=1.2.2",

@@ -1,39 +1,40 @@
 from langchain_core.messages import AIMessage
-from langchain_openai import ChatOpenAI
 
-from .states import AgentState
-
-VALID_CATEGORIES = {"financial_concepts", "realtime_quotes", "out_of_scope"}
+from .states import AgentState, RouteDecision
 
 ROUTER_SYSTEM_PROMPT = (
     "You are a request router for a finance assistant. "
     "Classify the user's request into exactly one of these categories: "
-    "financial_concepts, realtime_quotes, out_of_scope. "
-    "Respond with ONLY one of these three exact strings and nothing else: "
-    "financial_concepts, realtime_quotes, out_of_scope."
+    "financial_concepts_node, realtime_quotes_node, out_of_scope. "
+    "Use financial_concepts_node for questions about financial concepts, "
+    "definitions, or general education (e.g. 'What is a P/E ratio?'). "
+    "Use realtime_quotes_node for requests about current stock prices or quotes "
+    "(e.g. 'What is the current price of AAPL?'). "
+    "Use out_of_scope for anything unrelated to finance. "
+    "Provide your classification in the 'next' field and a brief explanation "
+    "of your reasoning in the 'reasoning' field."
 )
 
 
-def router_node(state: AgentState) -> dict:
-    call_counts = dict(state.get("call_counts", {}))
-    call_counts["router_node"] = call_counts.get("router_node", 0) + 1
+def make_router_node(llm):
+    def router_node(state: AgentState) -> dict:
+        call_counts = dict(state.get("call_counts", {}))
+        call_counts["router_node"] = call_counts.get("router_node", 0) + 1
 
-    user_text = state["messages"][-1].content
+        user_text = state["messages"][-1].content
 
-    llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
-    response = llm.invoke([
-        ("system", ROUTER_SYSTEM_PROMPT),
-        ("human", user_text),
-    ])
+        structured_llm = llm.with_structured_output(RouteDecision)
+        decision = structured_llm.invoke([
+            ("system", ROUTER_SYSTEM_PROMPT),
+            ("human", user_text),
+        ])
 
-    classification = response.content.strip()
-    if classification not in VALID_CATEGORIES:
-        classification = "out_of_scope"
+        return {
+            "call_counts": call_counts,
+            "messages": [AIMessage(content=decision.next)],
+        }
 
-    return {
-        "call_counts": call_counts,
-        "messages": [AIMessage(content=classification)],
-    }
+    return router_node
 
 
 def financial_concepts_node(state: AgentState) -> dict:
