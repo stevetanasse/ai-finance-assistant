@@ -1,22 +1,32 @@
 from langchain_core.messages import HumanMessage
 
 from src.workflow.graph import build_graph
-from src.workflow.states import RouteDecision
 
 
-class MockLLM:
+class _MockLLMResponse:
+    def __init__(self, route):
+        self.next = route
+        self.reasoning = "mock reasoning"
+        self.content = route
+        self.tool_calls = []
+
+
+class MockRouteNodeLLM:
     def __init__(self, route):
         self.route = route
 
     def with_structured_output(self, schema):
         return self
 
+    def bind_tools(self, tools):
+        return self
+
     def invoke(self, prompt):
-        return RouteDecision(next=self.route, reasoning="mock reasoning")
+        return _MockLLMResponse(self.route)
 
 
 def test_routes_to_financial_concepts():
-    graph = build_graph(MockLLM(route="financial_concepts_node"))
+    graph = build_graph(MockRouteNodeLLM(route="financial_concepts_node"))
     config = {"configurable": {"thread_id": "test-financial-concepts"}}
 
     result = graph.invoke(
@@ -30,7 +40,7 @@ def test_routes_to_financial_concepts():
 
 
 def test_routes_to_realtime_quotes():
-    graph = build_graph(MockLLM(route="realtime_quotes_node"))
+    graph = build_graph(MockRouteNodeLLM(route="realtime_quotes_node"))
     config = {"configurable": {"thread_id": "test-realtime-quotes"}}
 
     result = graph.invoke(
@@ -43,7 +53,7 @@ def test_routes_to_realtime_quotes():
     assert len(result["call_counts"]) == 2
 
 def test_routes_out_of_scope():
-    graph = build_graph(MockLLM(route="out_of_scope"))
+    graph = build_graph(MockRouteNodeLLM(route="out_of_scope"))
     config = {"configurable": {"thread_id": "test-out-of-scope"}}
 
     result = graph.invoke(

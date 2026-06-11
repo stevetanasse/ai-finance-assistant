@@ -1,4 +1,6 @@
-from langchain_core.messages import AIMessage
+import yfinance as yf
+from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.tools import tool
 
 from .states import AgentState, RouteDecision
 
@@ -49,13 +51,54 @@ def financial_concepts_node(state: AgentState) -> dict:
     }
 
 
-def realtime_quotes_node(state: AgentState) -> dict:
-    call_counts = dict(state.get("call_counts", {}))
-    call_counts["realtime_quotes_node"] = call_counts.get("realtime_quotes_node", 0) + 1
+@tool
+def get_stock_quotes(tickers: list[str]) -> str:
+    """Get the current price for up to 3 stock ticker symbols."""
+    if len(tickers) > 3:
+        raise ValueError("A maximum of 3 stock tickers may be requested at once.")
 
-    return {
-        "call_counts": call_counts,
-        "messages": [AIMessage(
-            content="[realtime_quotes_node] This node will provide real-time stock quotes. (stub)"
-        )],
-    }
+    quotes = []
+    for ticker in tickers:
+        ticker_obj = yf.Ticker(ticker)
+        price = ticker_obj.fast_info.last_price
+        quotes.append(f"{ticker}: {price:.2f}")
+
+    return "\n".join(quotes)
+
+
+REALTIME_QUOTES_SYSTEM_PROMPT = (
+    "You are a stock quote assistant. Extract the stock ticker symbols "
+    "from the user's request and call get_stock_quotes with a list of "
+    "up to 3 ticker symbols."
+)
+
+
+def make_realtime_quotes_node(llm):
+    def realtime_quotes_node(state: AgentState) -> dict:
+        call_counts = dict(state.get("call_counts", {}))
+        call_counts["realtime_quotes_node"] = call_counts.get("realtime_quotes_node", 0) + 1
+
+        user_text = next(
+            message.content
+            for message in reversed(state["messages"])
+            if isinstance(message, HumanMessage)
+        )
+
+        llm_with_tools = llm.bind_tools([get_stock_quotes])
+        response = llm_with_tools.invoke([
+            ("system", REALTIME_QUOTES_SYSTEM_PROMPT),
+            ("human", user_text),
+        ])
+
+        if response.tool_calls:
+            tool_call = response.tool_calls[0]
+            content = get_stock_quotes.invoke(tool_call["args"])
+        else:
+            content = response.content
+
+        return {
+            "call_counts": call_counts,
+            "messages": [AIMessage(content=content)],
+        }
+
+    return realtime_quotes_node

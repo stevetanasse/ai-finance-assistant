@@ -16,3 +16,4 @@ python-slugify
 langchain-text-splitters
 qdrant-client
 fastembed
+yfinance

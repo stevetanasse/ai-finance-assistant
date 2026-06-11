@@ -1,7 +1,7 @@
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, StateGraph
 
-from .nodes import financial_concepts_node, make_router_node, realtime_quotes_node
+from .nodes import financial_concepts_node, make_realtime_quotes_node, make_router_node
 from .states import AgentState
 
 
@@ -16,6 +16,7 @@ def route_after_router(state: AgentState) -> str:
 
 def build_graph(llm):
     router_node = make_router_node(llm)
+    realtime_quotes_node = make_realtime_quotes_node(llm)
 
     graph_builder = StateGraph(AgentState)
     graph_builder.add_node("router", router_node)
