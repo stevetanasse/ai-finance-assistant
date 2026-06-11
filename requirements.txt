@@ -1,6 +1,8 @@
 langgraph
 langchain
 langchain-community
+langchain-openai
+langchain-core
 chromadb
 streamlit
 requests
