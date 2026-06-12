@@ -2,6 +2,8 @@ import yfinance as yf
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.tools import tool
 
+from src.rag.embedder.hybrid_search import hybrid_search
+
 from .states import AgentState, RouteDecision
 
 ROUTER_SYSTEM_PROMPT = (
@@ -39,16 +41,63 @@ def make_router_node(llm):
     return router_node
 
 
-def financial_concepts_node(state: AgentState) -> dict:
-    call_counts = dict(state.get("call_counts", {}))
-    call_counts["financial_concepts_node"] = call_counts.get("financial_concepts_node", 0) + 1
+FINANCIAL_CONCEPTS_SYSTEM_PROMPT = (
+    "You are a financial education assistant. Answer the user's question using ONLY "
+    "the information in the provided context. Cite the source URL(s) for any claims "
+    "you make. If the context does not contain enough information to answer the "
+    "question, say so explicitly instead of guessing or relying on outside knowledge."
+)
 
-    return {
-        "call_counts": call_counts,
-        "messages": [AIMessage(
-            content="[financial_concepts_node] This node will answer financial concept questions. (stub)"
-        )],
-    }
+FINANCIAL_CONCEPTS_NOT_FOUND_MESSAGE = (
+    "I couldn't find any information about that topic in the knowledge base. "
+    "Try rephrasing your question or asking about a different financial concept."
+)
+
+
+def make_financial_concepts_node(llm, qdrant_manager, dense_embedder, sparse_embedder,
+                                  collection_name: str, top_k: int = 5):
+    """Create the financial concepts node, grounding answers in a Qdrant collection.
+
+    The returned node performs hybrid (dense + sparse) retrieval against
+    ``collection_name`` for the user's latest message, then asks ``llm`` to synthesize
+    an answer from the retrieved chunks. If no chunks are retrieved, it responds with a
+    graceful fallback instead of calling the LLM.
+    """
+    def financial_concepts_node(state: AgentState) -> dict:
+        call_counts = dict(state.get("call_counts", {}))
+        call_counts["financial_concepts_node"] = call_counts.get("financial_concepts_node", 0) + 1
+
+        user_text = next(
+            message.content
+            for message in reversed(state["messages"])
+            if isinstance(message, HumanMessage)
+        )
+
+        chunks = hybrid_search(
+            qdrant_manager, dense_embedder, sparse_embedder, collection_name, user_text, top_k=top_k
+        )
+
+        if not chunks:
+            return {
+                "call_counts": call_counts,
+                "messages": [AIMessage(content=FINANCIAL_CONCEPTS_NOT_FOUND_MESSAGE)],
+            }
+
+        context = "\n\n".join(
+            f"Source: {chunk['source_url']}\n{chunk['text']}" for chunk in chunks
+        )
+
+        response = llm.invoke([
+            ("system", FINANCIAL_CONCEPTS_SYSTEM_PROMPT),
+            ("human", f"Context:\n{context}\n\nQuestion: {user_text}"),
+        ])
+
+        return {
+            "call_counts": call_counts,
+            "messages": [AIMessage(content=response.content)],
+        }
+
+    return financial_concepts_node
 
 
 @tool

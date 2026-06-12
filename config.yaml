@@ -41,3 +41,4 @@ embedding:
   default_model: "bge-small-en-v1.5"
   default_collection_prefix: "fin"
   qdrant_distance: "cosine"
+  source_domain: "investor.gov"
