@@ -1,3 +1,5 @@
+import logging
+
 import yfinance as yf
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.tools import tool
@@ -5,6 +7,8 @@ from langchain_core.tools import tool
 from src.rag.embedder.hybrid_search import hybrid_search
 
 from .states import AgentState, RouteDecision
+
+logger = logging.getLogger(__name__)
 
 ROUTER_SYSTEM_PROMPT = (
     "You are a request router for a finance assistant. "
@@ -20,6 +24,17 @@ ROUTER_SYSTEM_PROMPT = (
     "Use out_of_scope for anything unrelated to finance. "
     "'out_of_scope' must always be returned alone, never combined with other "
     "categories. "
+    "When 'financial_concepts' is included in 'next', set "
+    "'financial_concepts_query' to a restatement of ONLY the concept-related "
+    "portion of the request, with any ticker symbols or price/quote requests "
+    "removed entirely (e.g. for 'What is a dividend and what is TSLA's price?', "
+    "use 'What is a dividend?'). "
+    "When 'realtime_quotes' is included in 'next', set 'realtime_quotes_query' "
+    "to just the relevant ticker symbol(s) (e.g. 'TSLA' or 'AAPL, MSFT'), "
+    "omitting all other content. "
+    "Leave 'financial_concepts_query' and 'realtime_quotes_query' as null when "
+    "the corresponding route is not included in 'next', and leave both null "
+    "when 'next' is ['out_of_scope']. "
     "Provide your classification as a list in the 'next' field and a brief "
     "explanation of your reasoning in the 'reasoning' field."
 )
@@ -41,10 +56,14 @@ def make_router_node(llm):
         # The routing decision now drives Send-based fan-out via the `route`
         # field instead of being smuggled into `messages` as an AIMessage,
         # so the synchronizer's message inspection only sees user-facing
-        # conversation content.
+        # conversation content. `route_decision` carries the full decision
+        # (including per-node sub-queries) so financial_concepts_node and
+        # realtime_quotes_node can each work from a decomposed, relevant
+        # slice of the request instead of the raw user message.
         return {
             "call_counts": call_counts,
             "route": decision.next,
+            "route_decision": decision,
         }
 
     return router_node
@@ -68,19 +87,31 @@ def make_financial_concepts_node(llm, qdrant_manager, dense_embedder, sparse_emb
     """Create the financial concepts node, grounding answers in a Qdrant collection.
 
     The returned node performs hybrid (dense + sparse) retrieval against
-    ``collection_name`` for the user's latest message, then asks ``llm`` to synthesize
-    an answer from the retrieved chunks. If no chunks are retrieved, it responds with a
-    graceful fallback instead of calling the LLM.
+    ``collection_name`` using the router's ``financial_concepts_query`` sub-query
+    (falling back to the user's latest message, with a logged warning, if the
+    sub-query is missing or empty), then asks ``llm`` to synthesize an answer from
+    the retrieved chunks. If no chunks are retrieved, it responds with a graceful
+    fallback instead of calling the LLM.
     """
     def financial_concepts_node(state: AgentState) -> dict:
         call_counts = dict(state.get("call_counts", {}))
         call_counts["financial_concepts_node"] = call_counts.get("financial_concepts_node", 0) + 1
 
-        user_text = next(
-            message.content
-            for message in reversed(state["messages"])
-            if isinstance(message, HumanMessage)
-        )
+        route_decision = state.get("route_decision")
+        sub_query = route_decision.financial_concepts_query if route_decision else None
+
+        if sub_query:
+            user_text = sub_query
+        else:
+            user_text = next(
+                message.content
+                for message in reversed(state["messages"])
+                if isinstance(message, HumanMessage)
+            )
+            logger.warning(
+                "financial_concepts_node: route_decision.financial_concepts_query "
+                "missing or empty; falling back to raw user message"
+            )
 
         chunks = hybrid_search(
             qdrant_manager, dense_embedder, sparse_embedder, collection_name, user_text, top_k=top_k
@@ -142,11 +173,21 @@ def make_realtime_quotes_node(llm):
         call_counts = dict(state.get("call_counts", {}))
         call_counts["realtime_quotes_node"] = call_counts.get("realtime_quotes_node", 0) + 1
 
-        user_text = next(
-            message.content
-            for message in reversed(state["messages"])
-            if isinstance(message, HumanMessage)
-        )
+        route_decision = state.get("route_decision")
+        sub_query = route_decision.realtime_quotes_query if route_decision else None
+
+        if sub_query:
+            user_text = sub_query
+        else:
+            user_text = next(
+                message.content
+                for message in reversed(state["messages"])
+                if isinstance(message, HumanMessage)
+            )
+            logger.warning(
+                "realtime_quotes_node: route_decision.realtime_quotes_query "
+                "missing or empty; falling back to raw user message"
+            )
 
         llm_with_tools = llm.bind_tools([get_stock_quotes])
         response = llm_with_tools.invoke([

@@ -1,19 +1,34 @@
 from langchain_core.messages import HumanMessage
 
 from src.workflow.graph import build_graph
+from src.workflow.states import RouteDecision
 
 
-class _MockLLMResponse:
-    def __init__(self, route):
-        self.next = route
-        self.reasoning = "mock reasoning"
-        self.content = route
-        self.tool_calls = []
+class _MockLLMResponse(RouteDecision):
+    """Doubles as the router's structured RouteDecision output (`.next`,
+    `.reasoning`, sub-query fields - stored on AgentState.route_decision, so
+    it must be a RouteDecision for checkpoint serialization) and as the
+    realtime_quotes_node tool-call response (`.content`, `.tool_calls`)."""
+
+    content: list[str] = []
+    tool_calls: list = []
+
+    def __init__(self, route, financial_concepts_query=None, realtime_quotes_query=None):
+        super().__init__(
+            next=route,
+            reasoning="mock reasoning",
+            content=route,
+            tool_calls=[],
+            financial_concepts_query=financial_concepts_query,
+            realtime_quotes_query=realtime_quotes_query,
+        )
 
 
 class MockRouteNodeLLM:
-    def __init__(self, route):
+    def __init__(self, route, financial_concepts_query=None, realtime_quotes_query=None):
         self.route = route
+        self.financial_concepts_query = financial_concepts_query
+        self.realtime_quotes_query = realtime_quotes_query
 
     def with_structured_output(self, schema):
         return self
@@ -22,11 +37,18 @@ class MockRouteNodeLLM:
         return self
 
     def invoke(self, prompt):
-        return _MockLLMResponse(self.route)
+        return _MockLLMResponse(
+            self.route,
+            financial_concepts_query=self.financial_concepts_query,
+            realtime_quotes_query=self.realtime_quotes_query,
+        )
 
 
 def test_routes_to_financial_concepts():
-    graph = build_graph(MockRouteNodeLLM(route=["financial_concepts"]))
+    graph = build_graph(MockRouteNodeLLM(
+        route=["financial_concepts"],
+        financial_concepts_query="What is a P/E ratio?",
+    ))
     config = {"configurable": {"thread_id": "test-financial-concepts"}}
 
     result = graph.invoke(
@@ -41,7 +63,10 @@ def test_routes_to_financial_concepts():
 
 
 def test_routes_to_realtime_quotes():
-    graph = build_graph(MockRouteNodeLLM(route=["realtime_quotes"]))
+    graph = build_graph(MockRouteNodeLLM(
+        route=["realtime_quotes"],
+        realtime_quotes_query="AAPL",
+    ))
     config = {"configurable": {"thread_id": "test-realtime-quotes"}}
 
     result = graph.invoke(

@@ -11,24 +11,25 @@ from src.workflow.nodes import (
     make_router_node,
     make_synchronizer_node,
 )
-from src.workflow.states import AgentState
-
-
-class _MockLLMResponse:
-    def __init__(self, route):
-        self.next = route
-        self.reasoning = "mock reasoning"
+from src.workflow.states import AgentState, RouteDecision
 
 
 class MockRouteNodeLLM:
-    def __init__(self, route):
+    def __init__(self, route, financial_concepts_query=None, realtime_quotes_query=None):
         self.route = route
+        self.financial_concepts_query = financial_concepts_query
+        self.realtime_quotes_query = realtime_quotes_query
 
     def with_structured_output(self, schema):
         return self
 
     def invoke(self, prompt):
-        return _MockLLMResponse(self.route)
+        return RouteDecision(
+            next=self.route,
+            reasoning="mock reasoning",
+            financial_concepts_query=self.financial_concepts_query,
+            realtime_quotes_query=self.realtime_quotes_query,
+        )
 
 
 # --- route_after_router as a pure function ---
@@ -70,7 +71,11 @@ def test_route_after_router_out_of_scope_returns_synchronizer():
 
 
 def test_router_node_emits_multiple_routes():
-    node = make_router_node(MockRouteNodeLLM(route=["financial_concepts", "realtime_quotes"]))
+    node = make_router_node(MockRouteNodeLLM(
+        route=["financial_concepts", "realtime_quotes"],
+        financial_concepts_query="What is a P/E ratio?",
+        realtime_quotes_query="AAPL",
+    ))
     result = node({
         "messages": [HumanMessage(content="What is a P/E ratio and what is AAPL's price?")],
         "call_counts": {},
@@ -78,6 +83,8 @@ def test_router_node_emits_multiple_routes():
 
     assert result["route"] == ["financial_concepts", "realtime_quotes"]
     assert result["call_counts"]["router_node"] == 1
+    assert result["route_decision"].financial_concepts_query == "What is a P/E ratio?"
+    assert result["route_decision"].realtime_quotes_query == "AAPL"
 
 
 # --- make_synchronizer_node ---
@@ -239,3 +246,60 @@ def test_call_counts_integrity_dual_route():
         "realtime_quotes_node": 1,
         "synchronizer_node": 1,
     }
+
+
+# --- sub-query decomposition ---
+
+
+def _build_subquery_test_graph(route_value, financial_concepts_query, realtime_quotes_query):
+    captured = {}
+
+    def fake_financial_concepts(state):
+        captured["financial_concepts_query"] = state["route_decision"].financial_concepts_query
+        call_counts = dict(state.get("call_counts", {}))
+        call_counts["financial_concepts_node"] = call_counts.get("financial_concepts_node", 0) + 1
+        return {
+            "call_counts": call_counts,
+            "messages": [AIMessage(content="concept answer", name="financial_concepts")],
+        }
+
+    def fake_realtime_quotes(state):
+        captured["realtime_quotes_query"] = state["route_decision"].realtime_quotes_query
+        call_counts = dict(state.get("call_counts", {}))
+        call_counts["realtime_quotes_node"] = call_counts.get("realtime_quotes_node", 0) + 1
+        return {
+            "call_counts": call_counts,
+            "messages": [AIMessage(content="quote answer", name="realtime_quotes")],
+        }
+
+    builder = StateGraph(AgentState)
+    builder.add_node("router", make_router_node(MockRouteNodeLLM(
+        route=route_value,
+        financial_concepts_query=financial_concepts_query,
+        realtime_quotes_query=realtime_quotes_query,
+    )))
+    builder.add_node("financial_concepts", fake_financial_concepts)
+    builder.add_node("realtime_quotes", fake_realtime_quotes)
+    builder.add_node("synchronizer", make_synchronizer_node())
+    builder.set_entry_point("router")
+    builder.add_conditional_edges("router", route_after_router)
+    builder.add_edge("financial_concepts", "synchronizer")
+    builder.add_edge("realtime_quotes", "synchronizer")
+    builder.add_edge("synchronizer", END)
+    return builder.compile(checkpointer=MemorySaver()), captured
+
+
+def test_dual_route_nodes_receive_decomposed_sub_queries():
+    graph, captured = _build_subquery_test_graph(
+        route_value=["financial_concepts", "realtime_quotes"],
+        financial_concepts_query="What is a dividend?",
+        realtime_quotes_query="TSLA",
+    )
+
+    graph.invoke(
+        {"messages": [HumanMessage(content="What is a dividend and what is the price of TSLA?")], "call_counts": {}, "route": []},
+        config={"configurable": {"thread_id": "subquery-decomposition"}},
+    )
+
+    assert captured["financial_concepts_query"] == "What is a dividend?"
+    assert captured["realtime_quotes_query"] == "TSLA"
