@@ -108,9 +108,12 @@ def get_stock_quotes(tickers: list[str]) -> str:
 
     quotes = []
     for ticker in tickers:
-        ticker_obj = yf.Ticker(ticker)
-        price = ticker_obj.fast_info.last_price
-        quotes.append(f"{ticker}: {price:.2f}")
+        try:
+            ticker_obj = yf.Ticker(ticker)
+            price = ticker_obj.fast_info.last_price
+            quotes.append(f"{ticker}: {price:.2f}")
+        except Exception as e:
+            quotes.append(f"Quote not found for {ticker}")
 
     return "\n".join(quotes)
 
