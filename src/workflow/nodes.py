@@ -63,7 +63,7 @@ def make_router_node(llm):
         return {
             "call_counts": call_counts,
             "route": decision.next,
-            "route_decision": decision,
+            "route_decision": decision.model_dump(),
         }
 
     return router_node
@@ -98,7 +98,7 @@ def make_financial_concepts_node(llm, qdrant_manager, dense_embedder, sparse_emb
         call_counts["financial_concepts_node"] = call_counts.get("financial_concepts_node", 0) + 1
 
         route_decision = state.get("route_decision")
-        sub_query = route_decision.financial_concepts_query if route_decision else None
+        sub_query = route_decision.get("financial_concepts_query") if route_decision else None
 
         if sub_query:
             user_text = sub_query
@@ -174,7 +174,7 @@ def make_realtime_quotes_node(llm):
         call_counts["realtime_quotes_node"] = call_counts.get("realtime_quotes_node", 0) + 1
 
         route_decision = state.get("route_decision")
-        sub_query = route_decision.realtime_quotes_query if route_decision else None
+        sub_query = route_decision.get("realtime_quotes_query") if route_decision else None
 
         if sub_query:
             user_text = sub_query

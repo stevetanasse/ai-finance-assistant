@@ -4,7 +4,6 @@ from langchain_core.messages import AIMessage, HumanMessage
 
 from src.rag.embedder.qdrant_manager import QdrantManager
 from src.workflow.nodes import FINANCIAL_CONCEPTS_NOT_FOUND_MESSAGE, make_financial_concepts_node
-from src.workflow.states import RouteDecision
 
 DIM = 384
 SPARSE_VEC = {"indices": [0, 1, 2], "values": [0.5, 0.3, 0.2]}
@@ -48,11 +47,11 @@ def test_successful_retrieval_grounds_llm_prompt_and_returns_response():
     result = node({
         "messages": [HumanMessage(content="What is a bond?")],
         "call_counts": {},
-        "route_decision": RouteDecision(
-            next=["financial_concepts"],
-            reasoning="mock",
-            financial_concepts_query="What is a bond?",
-        ),
+        "route_decision": {
+            "next": ["financial_concepts"],
+            "reasoning": "mock",
+            "financial_concepts_query": "What is a bond?",
+        },
     })
 
     human_prompt = llm.invoked_with[1][1]
@@ -78,11 +77,11 @@ def test_empty_retrieval_returns_graceful_fallback_without_calling_llm():
     result = node({
         "messages": [HumanMessage(content="What is a derivative?")],
         "call_counts": {},
-        "route_decision": RouteDecision(
-            next=["financial_concepts"],
-            reasoning="mock",
-            financial_concepts_query="What is a derivative?",
-        ),
+        "route_decision": {
+            "next": ["financial_concepts"],
+            "reasoning": "mock",
+            "financial_concepts_query": "What is a derivative?",
+        },
     })
 
     assert result["messages"][-1].content == FINANCIAL_CONCEPTS_NOT_FOUND_MESSAGE
@@ -106,12 +105,12 @@ def test_dual_domain_request_uses_concept_only_sub_query():
     result = node({
         "messages": [HumanMessage(content="What is a dividend and what is the price of TSLA?")],
         "call_counts": {},
-        "route_decision": RouteDecision(
-            next=["financial_concepts", "realtime_quotes"],
-            reasoning="mock",
-            financial_concepts_query="What is a dividend?",
-            realtime_quotes_query="TSLA",
-        ),
+        "route_decision": {
+            "next": ["financial_concepts", "realtime_quotes"],
+            "reasoning": "mock",
+            "financial_concepts_query": "What is a dividend?",
+            "realtime_quotes_query": "TSLA",
+        },
     })
 
     human_prompt = llm.invoked_with[1][1]
@@ -138,7 +137,7 @@ def test_financial_concepts_falls_back_and_warns_when_sub_query_missing(caplog):
         result = node({
             "messages": [HumanMessage(content="What is a bond?")],
             "call_counts": {},
-            "route_decision": RouteDecision(next=["financial_concepts"], reasoning="mock"),
+            "route_decision": {"next": ["financial_concepts"], "reasoning": "mock"},
         })
 
     human_prompt = llm.invoked_with[1][1]

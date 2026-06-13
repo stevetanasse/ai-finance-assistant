@@ -4,7 +4,6 @@ import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 
 from src.workflow.nodes import get_stock_quotes, make_realtime_quotes_node
-from src.workflow.states import RouteDecision
 
 
 class MockQuotesNodeLLM:
@@ -42,11 +41,11 @@ def test_single_ticker_returns_formatted_quote():
         result = node({
             "messages": [HumanMessage(content="What is the price of AAPL?")],
             "call_counts": {},
-            "route_decision": RouteDecision(
-                next=["realtime_quotes"],
-                reasoning="mock",
-                realtime_quotes_query="AAPL",
-            ),
+            "route_decision": {
+                "next": ["realtime_quotes"],
+                "reasoning": "mock",
+                "realtime_quotes_query": "AAPL",
+            },
         })
 
     assert result["messages"][-1].content == "AAPL: 189.45"
@@ -63,11 +62,11 @@ def test_multiple_tickers_returns_formatted_quotes():
         result = node({
             "messages": [HumanMessage(content="What are the prices of AAPL and MSFT?")],
             "call_counts": {},
-            "route_decision": RouteDecision(
-                next=["realtime_quotes"],
-                reasoning="mock",
-                realtime_quotes_query="AAPL, MSFT",
-            ),
+            "route_decision": {
+                "next": ["realtime_quotes"],
+                "reasoning": "mock",
+                "realtime_quotes_query": "AAPL, MSFT",
+            },
         })
 
     assert result["messages"][-1].content == "AAPL: 189.45\nMSFT: 415.20"
@@ -102,7 +101,7 @@ def test_realtime_quotes_falls_back_and_warns_when_sub_query_missing(caplog):
             result = node({
                 "messages": [HumanMessage(content="What is the price of AAPL?")],
                 "call_counts": {},
-                "route_decision": RouteDecision(next=["realtime_quotes"], reasoning="mock"),
+                "route_decision": {"next": ["realtime_quotes"], "reasoning": "mock"},
             })
 
     assert llm.invoked_with[1][1] == "What is the price of AAPL?"

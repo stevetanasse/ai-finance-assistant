@@ -83,8 +83,8 @@ def test_router_node_emits_multiple_routes():
 
     assert result["route"] == ["financial_concepts", "realtime_quotes"]
     assert result["call_counts"]["router_node"] == 1
-    assert result["route_decision"].financial_concepts_query == "What is a P/E ratio?"
-    assert result["route_decision"].realtime_quotes_query == "AAPL"
+    assert result["route_decision"]["financial_concepts_query"] == "What is a P/E ratio?"
+    assert result["route_decision"]["realtime_quotes_query"] == "AAPL"
 
 
 # --- make_synchronizer_node ---
@@ -255,7 +255,7 @@ def _build_subquery_test_graph(route_value, financial_concepts_query, realtime_q
     captured = {}
 
     def fake_financial_concepts(state):
-        captured["financial_concepts_query"] = state["route_decision"].financial_concepts_query
+        captured["financial_concepts_query"] = state["route_decision"]["financial_concepts_query"]
         call_counts = dict(state.get("call_counts", {}))
         call_counts["financial_concepts_node"] = call_counts.get("financial_concepts_node", 0) + 1
         return {
@@ -264,7 +264,7 @@ def _build_subquery_test_graph(route_value, financial_concepts_query, realtime_q
         }
 
     def fake_realtime_quotes(state):
-        captured["realtime_quotes_query"] = state["route_decision"].realtime_quotes_query
+        captured["realtime_quotes_query"] = state["route_decision"]["realtime_quotes_query"]
         call_counts = dict(state.get("call_counts", {}))
         call_counts["realtime_quotes_node"] = call_counts.get("realtime_quotes_node", 0) + 1
         return {

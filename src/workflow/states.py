@@ -57,4 +57,6 @@ class AgentState(TypedDict):
     messages: Annotated[list[AnyMessage], add_messages]
     call_counts: Annotated[dict[str, int], merge_call_counts]
     route: list[str]
-    route_decision: RouteDecision | None
+    # RouteDecision.model_dump() - plain dict so MsgPack can serialize it in
+    # checkpoints. RouteDecision itself remains the LLM structured-output schema.
+    route_decision: dict | None
