@@ -8,15 +8,20 @@ from .states import AgentState, RouteDecision
 
 ROUTER_SYSTEM_PROMPT = (
     "You are a request router for a finance assistant. "
-    "Classify the user's request into exactly one of these categories: "
-    "financial_concepts_node, realtime_quotes_node, out_of_scope. "
-    "Use financial_concepts_node for questions about financial concepts, "
+    "Classify the user's request into one or more of these categories: "
+    "financial_concepts, realtime_quotes, out_of_scope. "
+    "Use financial_concepts for questions about financial concepts, "
     "definitions, or general education (e.g. 'What is a P/E ratio?'). "
-    "Use realtime_quotes_node for requests about current stock prices or quotes "
+    "Use realtime_quotes for requests about current stock prices or quotes "
     "(e.g. 'What is the current price of AAPL?'). "
+    "If a request asks about BOTH a financial concept AND a real-time quote "
+    "(e.g. 'What is a P/E ratio, and what is AAPL's current price?'), "
+    "return both 'financial_concepts' and 'realtime_quotes' in the 'next' list. "
     "Use out_of_scope for anything unrelated to finance. "
-    "Provide your classification in the 'next' field and a brief explanation "
-    "of your reasoning in the 'reasoning' field."
+    "'out_of_scope' must always be returned alone, never combined with other "
+    "categories. "
+    "Provide your classification as a list in the 'next' field and a brief "
+    "explanation of your reasoning in the 'reasoning' field."
 )
 
 
@@ -33,9 +38,13 @@ def make_router_node(llm):
             ("human", user_text),
         ])
 
+        # The routing decision now drives Send-based fan-out via the `route`
+        # field instead of being smuggled into `messages` as an AIMessage,
+        # so the synchronizer's message inspection only sees user-facing
+        # conversation content.
         return {
             "call_counts": call_counts,
-            "messages": [AIMessage(content=decision.next)],
+            "route": decision.next,
         }
 
     return router_node
@@ -77,10 +86,13 @@ def make_financial_concepts_node(llm, qdrant_manager, dense_embedder, sparse_emb
             qdrant_manager, dense_embedder, sparse_embedder, collection_name, user_text, top_k=top_k
         )
 
+        # `name="financial_concepts"` lets the synchronizer identify which
+        # message came from this node during fan-in, since message order
+        # after parallel Send execution is not guaranteed.
         if not chunks:
             return {
                 "call_counts": call_counts,
-                "messages": [AIMessage(content=FINANCIAL_CONCEPTS_NOT_FOUND_MESSAGE)],
+                "messages": [AIMessage(content=FINANCIAL_CONCEPTS_NOT_FOUND_MESSAGE, name="financial_concepts")],
             }
 
         context = "\n\n".join(
@@ -94,7 +106,7 @@ def make_financial_concepts_node(llm, qdrant_manager, dense_embedder, sparse_emb
 
         return {
             "call_counts": call_counts,
-            "messages": [AIMessage(content=response.content)],
+            "messages": [AIMessage(content=response.content, name="financial_concepts")],
         }
 
     return financial_concepts_node
@@ -148,9 +160,60 @@ def make_realtime_quotes_node(llm):
         else:
             content = response.content
 
+        # `name="realtime_quotes"` lets the synchronizer identify which
+        # message came from this node during fan-in, since message order
+        # after parallel Send execution is not guaranteed.
         return {
             "call_counts": call_counts,
-            "messages": [AIMessage(content=content)],
+            "messages": [AIMessage(content=content, name="realtime_quotes")],
         }
 
     return realtime_quotes_node
+
+
+SYNCHRONIZER_OUT_OF_SCOPE_MESSAGE = (
+    "This agent does not have the ability to reliably answer or respond to the request."
+)
+
+
+def make_synchronizer_node():
+    """Create the synchronizer node, the terminal fan-in point for all routes.
+
+    - route == ["out_of_scope"]: emits the fixed canned response, no LLM call.
+    - len(route) > 1: combines the AIMessage from each branch (identified via
+      `.name`) into one labeled, multi-section response
+      ("**Financial Concept**" / "**Market Data**").
+    - single non-out-of-scope route: pass-through - returns no `messages`
+      update, leaving the existing assistant message as the final answer.
+    """
+    def synchronizer_node(state: AgentState) -> dict:
+        call_counts = dict(state.get("call_counts", {}))
+        call_counts["synchronizer_node"] = call_counts.get("synchronizer_node", 0) + 1
+        route = state.get("route", [])
+
+        if route == ["out_of_scope"]:
+            return {
+                "call_counts": call_counts,
+                "messages": [AIMessage(content=SYNCHRONIZER_OUT_OF_SCOPE_MESSAGE)],
+            }
+
+        if len(route) > 1:
+            sections = []
+            for r, header in [
+                ("financial_concepts", "**Financial Concept**"),
+                ("realtime_quotes", "**Market Data**"),
+            ]:
+                if r in route:
+                    msg = next(
+                        m for m in reversed(state["messages"])
+                        if getattr(m, "name", None) == r
+                    )
+                    sections.append(f"{header}\n{msg.content}")
+            return {
+                "call_counts": call_counts,
+                "messages": [AIMessage(content="\n\n".join(sections))],
+            }
+
+        return {"call_counts": call_counts}
+
+    return synchronizer_node
