@@ -1,0 +1,19 @@
+[
+  {
+    "id": "finance_0001",
+    "question": "What is a stock?",
+    "evaluation_scopes": ["application", "retrieval", "generation"],
+    "category": "definition",
+    "tags": ["stocks", "beginner"],
+    "difficulty": "easy",
+    "expected_routes": ["financial_concepts"],
+    "expected_nodes": ["router_node", "financial_concepts_node", "synchronizer_node"],
+    "expected_behavior": "answer",
+    "expected_source_ids": [
+      "https://www.investor.gov/introduction-investing/investing-basics/investment-products/stocks"
+    ],
+    "expected_facts": ["ownership in a company"],
+    "forbidden_facts": [],
+    "risk_level": "low"
+  }
+]
