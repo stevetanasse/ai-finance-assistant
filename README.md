@@ -54,3 +54,33 @@ pytest tests/ -v --cov=src
 ```
 
 <!-- TODO: Describe test strategy and how to add new tests -->
+
+## Running the Application
+
+### Quick start (two terminals)
+
+**Terminal 1 — Start the API service:**
+```bash
+uv run uvicorn api.service:app --host 0.0.0.0 --port 8000
+```
+
+**Terminal 2 — Start the Streamlit UI:**
+```bash
+uv run streamlit run ui/app.py
+```
+
+Then open http://localhost:8501 in your browser.
+
+### Prerequisites
+
+The Qdrant collection must be populated before running the service. If starting fresh:
+```bash
+uv run python -m src.rag.pipeline.rag_pipeline --action embed
+```
+
+Refer to the RAG pipeline documentation for full embedding options.
+
+### Optional: override the Qdrant collection at runtime
+```bash
+COLLECTION_NAME=fin_c250_o25_bge-small_bm42 uv run uvicorn api.service:app --port 8000
+```
