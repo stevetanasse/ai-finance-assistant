@@ -1,8 +1,13 @@
 import json
+import re
 import pytest
 from pathlib import Path
 
 from src.rag.chunker.chunk_cache_manager import ChunkCacheManager
+
+UUID_CHUNK_RE = re.compile(
+    r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}_\d{4}$"
+)
 
 URL = (
     "https://www.investor.gov/introduction-investing/investing-basics"
@@ -39,9 +44,9 @@ def test_make_cache_key_different_sizes_produce_different_keys(cm):
 # get_chunk_filepath
 # ---------------------------------------------------------------------------
 
-def test_get_chunk_filepath_uses_domain_subdir(cm):
+def test_get_chunk_filepath_file_is_directly_in_chunk_cache_dir(cm):
     path = cm.get_chunk_filepath(URL, 500, 50)
-    assert path.parent.name == "investor.gov"
+    assert path.parent == cm.chunk_cache_dir
 
 def test_get_chunk_filepath_filename_contains_chunk_params(cm):
     path = cm.get_chunk_filepath(URL, 500, 50)
@@ -115,6 +120,18 @@ def test_write_chunks_total_chunks_is_consistent(cm):
     objs = [json.loads(l) for l in path.read_text(encoding="utf-8").splitlines() if l.strip()]
     for o in objs:
         assert o["total_chunks"] == len(SAMPLE_CHUNKS)
+
+def test_write_chunks_chunk_id_uses_guid_format(cm):
+    path = cm.write_chunks(SAMPLE_CHUNKS, URL, 500, 50, "investor.gov", "scraper/stocks.txt", "recursive")
+    objs = [json.loads(l) for l in path.read_text(encoding="utf-8").splitlines() if l.strip()]
+    for obj in objs:
+        assert UUID_CHUNK_RE.match(obj["chunk_id"]), f"Unexpected chunk_id format: {obj['chunk_id']}"
+
+def test_write_chunks_same_url_same_guid_prefix(cm):
+    path = cm.write_chunks(SAMPLE_CHUNKS, URL, 500, 50, "investor.gov", "scraper/stocks.txt", "recursive")
+    objs = [json.loads(l) for l in path.read_text(encoding="utf-8").splitlines() if l.strip()]
+    guids = {obj["chunk_id"].rsplit("_", 1)[0] for obj in objs}
+    assert len(guids) == 1, "All chunks for a URL should share the same GUID prefix"
 
 def test_read_chunks_returns_list_of_dicts(cm):
     path = cm.write_chunks(SAMPLE_CHUNKS, URL, 500, 50, "investor.gov", "scraper/stocks.txt", "recursive")

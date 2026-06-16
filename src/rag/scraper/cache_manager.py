@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 from urllib.parse import urlparse
 
-from slugify import slugify
+from src.rag.guid_registry import GuidRegistry
 
 
 class CacheManager:
@@ -18,6 +18,7 @@ class CacheManager:
         self.base_path.mkdir(parents=True, exist_ok=True)
         self.html_cache_dir.mkdir(exist_ok=True)
         self.scraper_cache_dir.mkdir(exist_ok=True)
+        self._guid_registry = GuidRegistry(self.base_path)
 
     def load_html_mapping(self) -> dict:
         return self._load(self.html_mapping_file)
@@ -32,15 +33,12 @@ class CacheManager:
         self._save(self.scraper_mapping_file, mapping)
 
     def get_cache_filepath(self, url: str, cache_dir: Path | str) -> Path:
-        parsed = urlparse(url)
-        domain = parsed.netloc
-        if domain.startswith("www."):
-            domain = domain[4:]
-        path_parts = [p for p in parsed.path.split("/") if p]
-        relevant = path_parts[-2:] if path_parts else ["index"]
-        slug = "_".join(slugify(p) for p in relevant) or "index"
+        guid = self._guid_registry.get_or_create_guid(url)
         ext = ".html" if "html" in str(Path(cache_dir).name) else ".txt"
-        return Path(cache_dir) / domain / f"{slug}{ext}"
+        return Path(cache_dir) / f"{guid}{ext}"
+
+    def get_guid(self, url: str) -> str:
+        return self._guid_registry.get_or_create_guid(url)
 
     def is_url_cached(self, url: str, mapping: dict) -> bool:
         return url in mapping and mapping[url].get("status") == "success"

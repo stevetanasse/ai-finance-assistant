@@ -118,6 +118,9 @@ def run(
             print(f"[rag_pipeline] Action: {action}")
             print(f"[rag_pipeline] URLs to process: {len(urls)}")
             print(f"[rag_pipeline] Cache path: {cm.base_path}")
+            for url in urls:
+                guid = cm.get_guid(url)
+                print(f"Processing: {url} [guid: {guid}]")
 
         dl = UrlDownloader(cache_manager=cm, force_refresh=force_refresh)
         html_mapping = dl.download_all(urls)

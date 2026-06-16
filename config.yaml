@@ -41,4 +41,8 @@ embedding:
   default_model: "bge-small-en-v1.5"
   default_collection_prefix: "fin"
   qdrant_distance: "cosine"
+  # NOTE: source_domain is read by src/workflow/graph.py to construct the Qdrant
+  # collection name via EmbeddingCacheManager.make_collection_name(). Do not remove
+  # without updating graph.py. It is NOT used for cache folder naming (domain
+  # subfolders were removed in the GUID-based flat cache refactor).
   source_domain: "investor.gov"

@@ -36,6 +36,10 @@ class UrlDownloader:
         if not self.force_refresh and self.cache_manager.is_url_cached(url, mapping):
             return mapping[url]
 
+        # GUID-first: register before any file I/O so a crashed run can resume
+        # with the same GUID for this URL.
+        guid = self.cache_manager._guid_registry.get_or_create_guid(url)
+
         parsed = urlparse(url)
         domain = parsed.netloc
         if domain.startswith("www."):
@@ -44,6 +48,9 @@ class UrlDownloader:
         cache_path = self.cache_manager.get_cache_filepath(url, self.cache_manager.html_cache_dir)
 
         entry: dict = {
+            "guid": guid,
+            "url": url,
+            "domain": domain,
             "file_path": str(cache_path),
             "scraped_path": str(self.cache_manager.get_cache_filepath(url, self.cache_manager.scraper_cache_dir)),
             "downloaded_at": None,

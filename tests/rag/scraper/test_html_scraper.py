@@ -81,6 +81,16 @@ def test_scrape_url_uses_generic_extractor_for_unregistered_domain(scraper, cm):
     text = Path(result["scraped_path"]).read_text(encoding="utf-8")
     assert "Hello world" in text
 
+def test_scrape_url_emits_warning_for_unregistered_domain(scraper, cm, caplog):
+    import logging
+    entry = _make_entry(URL_UNKNOWN, "example.com", GENERIC_HTML, cm)
+    with caplog.at_level(logging.WARNING):
+        scraper.scrape_url(URL_UNKNOWN, {URL_UNKNOWN: entry})
+    assert any(
+        "example.com" in r.message and "No domain-specific extractor" in r.message
+        for r in caplog.records
+    )
+
 
 # ---------------------------------------------------------------------------
 # scrape_url — entry updates
@@ -121,7 +131,7 @@ def test_scrape_url_populates_scraped_at(scraper, cm):
 # ---------------------------------------------------------------------------
 
 def test_scrape_all_skips_entries_with_failed_download_status(scraper, cm):
-    html_path = str(cm.html_cache_dir / "investor.gov" / "page.html")
+    html_path = str(cm.html_cache_dir / "some-file.html")
     cm.save_html_mapping({
         URL: {
             "status": "failed",

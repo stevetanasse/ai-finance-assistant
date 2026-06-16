@@ -1,3 +1,4 @@
+import re
 import pytest
 import requests
 from pathlib import Path
@@ -5,6 +6,10 @@ from unittest.mock import MagicMock, patch
 
 from src.rag.scraper.cache_manager import CacheManager
 from src.rag.scraper.url_downloader import UrlDownloader
+
+UUID4_RE = re.compile(
+    r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+)
 
 URL = (
     "https://www.investor.gov/introduction-investing/investing-basics"
@@ -57,6 +62,10 @@ def test_successful_download_populates_all_rich_fields(downloader):
     assert entry["source_domain"] == "investor.gov"
     assert entry["error_message"] is None
     assert entry["file_path"] is not None
+    assert "guid" in entry
+    assert UUID4_RE.match(entry["guid"]), f"Expected UUID v4 guid, got: {entry['guid']}"
+    assert entry["domain"] == "investor.gov"
+    assert entry["url"] == URL
 
 def test_successful_download_writes_html_file(downloader):
     with patch.object(downloader.session, "get", return_value=_mock_response()):

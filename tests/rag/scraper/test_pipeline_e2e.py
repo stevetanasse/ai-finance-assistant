@@ -65,10 +65,10 @@ class TestPipelineEndToEnd:
         assert (tmp_path / "html_cache" / "html_cache_mapping.json").exists()
         assert (tmp_path / "scraper_cache" / "scraper_cache_mapping.json").exists()
 
-        html_files = list((tmp_path / "html_cache" / "investor.gov").glob("*.html"))
+        html_files = list((tmp_path / "html_cache").glob("*.html"))
         assert len(html_files) == 1
 
-        txt_files = list((tmp_path / "scraper_cache" / "investor.gov").glob("*.txt"))
+        txt_files = list((tmp_path / "scraper_cache").glob("*.txt"))
         assert len(txt_files) == 1
 
     def test_full_pipeline_mapping_files_are_consistent(self, tmp_path):

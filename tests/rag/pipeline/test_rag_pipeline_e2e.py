@@ -36,9 +36,8 @@ class TestRagPipelineE2E:
 
         assert code == 0
         assert (tmp_path / "html_cache").is_dir()
-        assert (tmp_path / "html_cache" / "investor.gov").is_dir()
 
-        html_files = list((tmp_path / "html_cache" / "investor.gov").glob("*.html"))
+        html_files = list((tmp_path / "html_cache").glob("*.html"))
         assert len(html_files) >= 1
 
         mapping_file = tmp_path / "html_cache" / "html_cache_mapping.json"
@@ -72,7 +71,7 @@ class TestRagPipelineE2E:
         assert html_mapping[INVESTOR_GOV_STOCKS_URL]["status"] == "success"
         assert scraper_mapping[INVESTOR_GOV_STOCKS_URL]["status"] == "success"
 
-        txt_files = list((tmp_path / "scraper_cache" / "investor.gov").glob("*.txt"))
+        txt_files = list((tmp_path / "scraper_cache").glob("*.txt"))
         assert len(txt_files) >= 1
 
         txt_content = txt_files[0].read_text(encoding="utf-8")
@@ -87,7 +86,7 @@ class TestRagPipelineE2E:
     def test_scrape_action_skips_cached_download(self, tmp_path):
         run(cache_path=tmp_path, action="download", urls=[INVESTOR_GOV_STOCKS_URL])
 
-        html_files = list((tmp_path / "html_cache" / "investor.gov").glob("*.html"))
+        html_files = list((tmp_path / "html_cache").glob("*.html"))
         assert len(html_files) >= 1
         html_file = html_files[0]
         mtime_before = html_file.stat().st_mtime
@@ -104,7 +103,7 @@ class TestRagPipelineE2E:
     def test_force_refresh_redownloads_content(self, tmp_path):
         run(cache_path=tmp_path, action="download", urls=[INVESTOR_GOV_STOCKS_URL])
 
-        html_files = list((tmp_path / "html_cache" / "investor.gov").glob("*.html"))
+        html_files = list((tmp_path / "html_cache").glob("*.html"))
         assert len(html_files) >= 1
         html_file = html_files[0]
         mtime_before = html_file.stat().st_mtime
@@ -128,11 +127,11 @@ class TestRagPipelineE2E:
         )
 
         assert code == 0
-        assert (tmp_path / "html_cache" / "investor.gov").is_dir()
-        assert (tmp_path / "scraper_cache" / "investor.gov").is_dir()
-        assert (tmp_path / "chunk_cache" / "investor.gov").is_dir()
+        assert (tmp_path / "html_cache").is_dir()
+        assert (tmp_path / "scraper_cache").is_dir()
+        assert (tmp_path / "chunk_cache").is_dir()
 
-        jsonl_files = list((tmp_path / "chunk_cache" / "investor.gov").glob("*.jsonl"))
+        jsonl_files = list((tmp_path / "chunk_cache").glob("*.jsonl"))
         assert len(jsonl_files) >= 1
 
         mapping_file = tmp_path / "chunk_cache" / "chunk_cache_mapping.json"
@@ -189,7 +188,7 @@ class TestRagPipelineE2E:
         assert chunk_mapping[key_500]["status"] == "success"
         assert chunk_mapping[key_1000]["status"] == "success"
 
-        jsonl_files = list((tmp_path / "chunk_cache" / "investor.gov").glob("*.jsonl"))
+        jsonl_files = list((tmp_path / "chunk_cache").glob("*.jsonl"))
         assert len(jsonl_files) == 2
         names = {f.name for f in jsonl_files}
         assert any("_c500_o50" in n for n in names)
@@ -221,9 +220,9 @@ class TestRagPipelineE2E:
         )
 
         assert code == 0
-        assert list((tmp_path / "html_cache" / "investor.gov").glob("*.html"))
-        assert list((tmp_path / "scraper_cache" / "investor.gov").glob("*.txt"))
-        assert list((tmp_path / "chunk_cache" / "investor.gov").glob("*.jsonl"))
+        assert list((tmp_path / "html_cache").glob("*.html"))
+        assert list((tmp_path / "scraper_cache").glob("*.txt"))
+        assert list((tmp_path / "chunk_cache").glob("*.jsonl"))
         assert (tmp_path / "qdrant_storage").is_dir()
 
         embedding_mapping_file = tmp_path / "embedding_cache_mapping.json"

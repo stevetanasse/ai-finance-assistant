@@ -1,3 +1,4 @@
+import re
 import pytest
 from pathlib import Path
 
@@ -10,6 +11,10 @@ URL_BONDS = (
 URL_STOCKS = (
     "https://www.investor.gov/introduction-investing/investing-basics"
     "/investment-products/stocks"
+)
+
+UUID_RE = re.compile(
+    r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
 )
 
 
@@ -46,21 +51,26 @@ def test_two_instances_do_not_share_state(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# get_cache_filepath
+# get_cache_filepath — GUID-based flat structure
 # ---------------------------------------------------------------------------
 
-def test_get_cache_filepath_uses_domain_subdir(cm):
+def test_get_cache_filepath_file_is_directly_in_cache_dir(cm):
     path = cm.get_cache_filepath(URL_BONDS, cm.html_cache_dir)
-    assert path.parent.name == "investor.gov"
+    assert path.parent == cm.html_cache_dir
 
-def test_get_cache_filepath_slugifies_last_two_segments(cm):
+def test_get_cache_filepath_stem_is_guid_format(cm):
     path = cm.get_cache_filepath(URL_BONDS, cm.html_cache_dir)
-    assert path.name == "bonds-or-fixed-income-products_bonds.html"
+    assert UUID_RE.match(path.stem), f"Expected UUID v4 stem, got: {path.stem}"
 
-def test_get_cache_filepath_single_segment_path(cm):
-    url = "https://www.example.com/stocks"
-    path = cm.get_cache_filepath(url, cm.html_cache_dir)
-    assert path.name == "stocks.html"
+def test_get_cache_filepath_same_url_same_cache_dir_returns_same_path(cm):
+    path1 = cm.get_cache_filepath(URL_BONDS, cm.html_cache_dir)
+    path2 = cm.get_cache_filepath(URL_BONDS, cm.html_cache_dir)
+    assert path1 == path2
+
+def test_get_cache_filepath_different_urls_return_different_paths(cm):
+    path1 = cm.get_cache_filepath(URL_BONDS, cm.html_cache_dir)
+    path2 = cm.get_cache_filepath(URL_STOCKS, cm.html_cache_dir)
+    assert path1 != path2
 
 def test_get_cache_filepath_html_extension(cm):
     path = cm.get_cache_filepath(URL_BONDS, cm.html_cache_dir)
@@ -75,6 +85,23 @@ def test_get_cache_filepath_strips_query_params(cm):
     path = cm.get_cache_filepath(url, cm.html_cache_dir)
     assert "ref" not in path.name
     assert "utm" not in path.name
+
+def test_get_cache_filepath_same_guid_for_html_and_scraper(cm):
+    html_path = cm.get_cache_filepath(URL_BONDS, cm.html_cache_dir)
+    scraper_path = cm.get_cache_filepath(URL_BONDS, cm.scraper_cache_dir)
+    assert html_path.stem == scraper_path.stem
+
+
+# ---------------------------------------------------------------------------
+# get_guid
+# ---------------------------------------------------------------------------
+
+def test_get_guid_returns_valid_uuid4(cm):
+    guid = cm.get_guid(URL_BONDS)
+    assert UUID_RE.match(guid), f"Expected UUID v4, got: {guid}"
+
+def test_get_guid_is_stable_across_calls(cm):
+    assert cm.get_guid(URL_BONDS) == cm.get_guid(URL_BONDS)
 
 
 # ---------------------------------------------------------------------------

@@ -1,9 +1,8 @@
 import json
 from datetime import datetime, timezone
 from pathlib import Path
-from urllib.parse import urlparse
 
-from slugify import slugify
+from src.rag.guid_registry import GuidRegistry
 
 
 class ChunkCacheManager:
@@ -15,6 +14,7 @@ class ChunkCacheManager:
         self.chunk_cache_dir = self.base_path / "chunk_cache"
         self.mapping_file = self.chunk_cache_dir / "chunk_cache_mapping.json"
         self.chunk_cache_dir.mkdir(parents=True, exist_ok=True)
+        self._guid_registry = GuidRegistry(self.base_path)
 
     # ------------------------------------------------------------------
     # Key / path helpers
@@ -24,15 +24,8 @@ class ChunkCacheManager:
         return f"{url}|c{chunk_size}|o{chunk_overlap}"
 
     def get_chunk_filepath(self, url: str, chunk_size: int, chunk_overlap: int) -> Path:
-        parsed = urlparse(url)
-        domain = parsed.netloc
-        if domain.startswith("www."):
-            domain = domain[4:]
-        path_parts = [p for p in parsed.path.split("/") if p]
-        slug = slugify(path_parts[-1]) if path_parts else "index"
-        domain_dir = self.chunk_cache_dir / domain
-        domain_dir.mkdir(exist_ok=True)
-        return domain_dir / f"{slug}_c{chunk_size}_o{chunk_overlap}.jsonl"
+        guid = self._guid_registry.get_or_create_guid(url)
+        return self.chunk_cache_dir / f"{guid}_c{chunk_size}_o{chunk_overlap}.jsonl"
 
     # ------------------------------------------------------------------
     # Cache status
@@ -77,9 +70,7 @@ class ChunkCacheManager:
         strategy: str,
     ) -> Path:
         filepath = self.get_chunk_filepath(url, chunk_size, chunk_overlap)
-        parsed = urlparse(url)
-        path_parts = [p for p in parsed.path.split("/") if p]
-        slug = slugify(path_parts[-1]) if path_parts else "index"
+        guid = self._guid_registry.get_or_create_guid(url)
 
         total = len(chunks)
         now = datetime.now(timezone.utc).isoformat()
@@ -87,7 +78,7 @@ class ChunkCacheManager:
         lines = []
         for i, text in enumerate(chunks):
             obj = {
-                "chunk_id": f"{source_domain}_{slug}_{i:04d}",
+                "chunk_id": f"{guid}_{i:04d}",
                 "url": url,
                 "source_domain": source_domain,
                 "chunk_index": i,

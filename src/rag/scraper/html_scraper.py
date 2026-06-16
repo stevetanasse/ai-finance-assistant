@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -25,6 +26,12 @@ class HtmlScraper:
             if extractor:
                 text = extractor.extract(soup)
             else:
+                domain = entry.get("source_domain", "")
+                logging.warning(
+                    "No domain-specific extractor registered for '%s'. "
+                    "Falling back to generic extraction. Results may be lower quality.",
+                    domain,
+                )
                 text = self._generic_extract(soup)
 
             html_path = Path(entry["file_path"])
