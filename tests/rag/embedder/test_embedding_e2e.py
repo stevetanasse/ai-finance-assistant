@@ -56,7 +56,7 @@ class TestEmbeddingE2E:
         pipeline.embed_all(chunk_mapping)
 
         collection_name = ecm.make_collection_name(
-            "investor.gov", CHUNK_SIZE, CHUNK_OVERLAP,
+            None, CHUNK_SIZE, CHUNK_OVERLAP,
             dense_embedder.model_name, sparse_embedder.model_name
         )
         return pipeline, ecm, qdrant, collection_name, chunk_mapping
@@ -69,7 +69,7 @@ class TestEmbeddingE2E:
         assert info["dense_vector_size"] == 384
         assert info["has_sparse_vectors"] is True
         assert collection_name == ecm.make_collection_name(
-            "investor.gov", CHUNK_SIZE, CHUNK_OVERLAP, "bge-small", "bm42"
+            None, CHUNK_SIZE, CHUNK_OVERLAP, "bge-small", "bm42"
         )
 
     def test_query_dense_returns_top_3_results(self, populated_qdrant):
@@ -136,7 +136,7 @@ class TestEmbeddingE2E:
         assert info["has_sparse_vectors"] is True
         assert info["dense_vector_size"] == 384
         assert info["vector_count"] >= 1
-        assert collection_name == "fin_investor_gov_c500_o50_bge-small_bm42"
+        assert collection_name == "fin_c500_o50_bge-small_bm42"
 
     def test_embedding_mapping_includes_sparse_model(self, populated_qdrant):
         pipeline, ecm, _, collection_name, _ = populated_qdrant

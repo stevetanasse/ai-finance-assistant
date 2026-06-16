@@ -242,7 +242,7 @@ class TestRagPipelineE2E:
         assert entry["sparse_model"] == SPARSE_SHORT_NAME
 
         collection_name = entry["collection_name"]
-        assert collection_name == f"fin_investor_gov_c500_o50_{DENSE_SHORT_NAME}_{SPARSE_SHORT_NAME}"
+        assert collection_name == f"fin_c500_o50_{DENSE_SHORT_NAME}_{SPARSE_SHORT_NAME}"
 
         qm = QdrantManager(storage_path=tmp_path / "qdrant_storage")
         info = qm.get_collection_info(collection_name)
@@ -371,8 +371,8 @@ class TestRagPipelineE2E:
         assert code1 == 0
         assert code2 == 0
 
-        collection_500 = f"fin_investor_gov_c500_o50_{DENSE_SHORT_NAME}_{SPARSE_SHORT_NAME}"
-        collection_1000 = f"fin_investor_gov_c1000_o100_{DENSE_SHORT_NAME}_{SPARSE_SHORT_NAME}"
+        collection_500 = f"fin_c500_o50_{DENSE_SHORT_NAME}_{SPARSE_SHORT_NAME}"
+        collection_1000 = f"fin_c1000_o100_{DENSE_SHORT_NAME}_{SPARSE_SHORT_NAME}"
 
         qm = QdrantManager(storage_path=tmp_path / "qdrant_storage")
         info_500 = qm.get_collection_info(collection_500)

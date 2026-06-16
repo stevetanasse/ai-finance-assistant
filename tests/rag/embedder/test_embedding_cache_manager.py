@@ -36,19 +36,19 @@ def test_two_different_sparse_models_produce_different_keys(cm):
 # ---------------------------------------------------------------------------
 
 def test_make_collection_name_correct_format(cm):
-    name = cm.make_collection_name("investor.gov", 500, 50, DENSE_MODEL, SPARSE_MODEL)
-    assert name == "fin_investor_gov_c500_o50_bge-small_bm42"
+    name = cm.make_collection_name(None, 500, 50, DENSE_MODEL, SPARSE_MODEL)
+    assert name == "fin_c500_o50_bge-small_bm42"
 
 def test_make_collection_name_includes_sparse_model(cm):
-    name = cm.make_collection_name("investor.gov", 500, 50, DENSE_MODEL, SPARSE_MODEL)
+    name = cm.make_collection_name(None, 500, 50, DENSE_MODEL, SPARSE_MODEL)
     assert SPARSE_MODEL in name
 
-def test_make_collection_name_slugifies_domain_dots(cm):
-    name = cm.make_collection_name("investor.gov", 500, 50, DENSE_MODEL, SPARSE_MODEL)
-    assert "." not in name
+def test_make_collection_name_has_no_domain_segment(cm):
+    name = cm.make_collection_name(None, 500, 50, DENSE_MODEL, SPARSE_MODEL)
+    assert "investor" not in name and "." not in name
 
 def test_make_collection_name_truncates_to_63_chars(cm):
-    name = cm.make_collection_name("very.long.domain.name.example.com", 500, 50, DENSE_MODEL, SPARSE_MODEL)
+    name = cm.make_collection_name(None, 500, 50, "a" * 50, "b" * 50)
     assert len(name) <= 63
 
 

@@ -47,6 +47,8 @@ def build_graph(llm):
     qdrant_manager = QdrantManager()
     dense_embedder = FastEmbedEmbedder(embedding_cfg["default_model"])
     sparse_embedder = BM42Embedder()
+    # TODO: update — domain removed from collection naming convention (see embedding_cache_manager.py).
+    # source_domain arg is now ignored; collection name format is fin_c{size}_o{overlap}_{dense}_{sparse}
     collection_name = EmbeddingCacheManager().make_collection_name(
         embedding_cfg["source_domain"],
         chunking_cfg["default_chunk_size"],

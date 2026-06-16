@@ -169,6 +169,12 @@ def run(
                 dense_embedder=dense_embedder,
                 sparse_embedder=sparse_embedder,
             )
+            if verbose:
+                _col = emb_cache_mgr.make_collection_name(
+                    None, chunk_size, chunk_overlap,
+                    dense_embedder.model_name, sparse_embedder.model_name
+                )
+                print(f"[rag_pipeline] Embedding chunks into collection: {_col}")
             embedding_mapping = embedding_pipeline.embed_all(
                 chunk_mapping=chunk_mapping,
                 force_refresh=force_refresh,

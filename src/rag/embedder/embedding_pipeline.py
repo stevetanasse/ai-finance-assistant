@@ -50,11 +50,10 @@ class EmbeddingPipeline:
         ):
             return embedding_mapping[cache_key]
 
-        source_domain = chunk_entry.get("source_domain", "")
         chunk_size = chunk_entry.get("chunk_size", 0)
         chunk_overlap = chunk_entry.get("chunk_overlap", 0)
         collection_name = self.cache_manager.make_collection_name(
-            source_domain, chunk_size, chunk_overlap,
+            None, chunk_size, chunk_overlap,
             self.dense_embedder.model_name, self.sparse_embedder.model_name
         )
 
@@ -139,7 +138,7 @@ class EmbeddingPipeline:
         for i, chunk_key in enumerate(pending, 1):
             chunk_entry = chunk_mapping[chunk_key]
             collection_name = self.cache_manager.make_collection_name(
-                chunk_entry.get("source_domain", ""),
+                None,
                 chunk_entry.get("chunk_size", 0),
                 chunk_entry.get("chunk_overlap", 0),
                 self.dense_embedder.model_name,

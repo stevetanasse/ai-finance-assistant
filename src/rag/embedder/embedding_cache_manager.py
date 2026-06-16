@@ -18,17 +18,13 @@ class EmbeddingCacheManager:
 
     def make_collection_name(
         self,
-        source_domain: str,
+        _source_domain_unused: str | None,  # deprecated; retained for backward compat with graph.py
         chunk_size: int,
         chunk_overlap: int,
         dense_model_name: str,
         sparse_model_name: str = "bm42",
     ) -> str:
-        domain_slug = source_domain.replace(".", "_")
-        name = (
-            f"fin_{domain_slug}_c{chunk_size}_o{chunk_overlap}"
-            f"_{dense_model_name}_{sparse_model_name}"
-        )
+        name = f"fin_c{chunk_size}_o{chunk_overlap}_{dense_model_name}_{sparse_model_name}"
         return name[:63]
 
     def load_mapping(self) -> dict:
