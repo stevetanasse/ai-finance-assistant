@@ -35,7 +35,7 @@ def route_after_router(state: AgentState) -> str | list[Send]:
     return [Send(route, state) for route in routes]
 
 
-def build_graph(llm):
+def build_graph(llm, collection_name: str | None = None):
     router_node = make_router_node(llm)
     realtime_quotes_node = make_realtime_quotes_node(llm)
     synchronizer_node = make_synchronizer_node()
@@ -47,15 +47,16 @@ def build_graph(llm):
     qdrant_manager = QdrantManager()
     dense_embedder = FastEmbedEmbedder(embedding_cfg["default_model"])
     sparse_embedder = BM42Embedder()
-    # TODO: update — domain removed from collection naming convention (see embedding_cache_manager.py).
-    # source_domain arg is now ignored; collection name format is fin_c{size}_o{overlap}_{dense}_{sparse}
-    collection_name = EmbeddingCacheManager().make_collection_name(
-        embedding_cfg["source_domain"],
-        chunking_cfg["default_chunk_size"],
-        chunking_cfg["default_chunk_overlap"],
-        dense_embedder.model_name,
-        sparse_embedder.model_name,
-    )
+    if collection_name is None:
+        # TODO: update — domain removed from collection naming convention (see embedding_cache_manager.py).
+        # source_domain arg is now ignored; collection name format is fin_c{size}_o{overlap}_{dense}_{sparse}
+        collection_name = EmbeddingCacheManager().make_collection_name(
+            embedding_cfg["source_domain"],
+            chunking_cfg["default_chunk_size"],
+            chunking_cfg["default_chunk_overlap"],
+            dense_embedder.model_name,
+            sparse_embedder.model_name,
+        )
     financial_concepts_node = make_financial_concepts_node(
         llm, qdrant_manager, dense_embedder, sparse_embedder, collection_name
     )

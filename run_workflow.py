@@ -1,3 +1,4 @@
+import argparse
 import sys
 from pathlib import Path
 
@@ -16,8 +17,17 @@ THREAD_ID = "finance-assistant-thread-1"
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--collection",
+        type=str,
+        default=None,
+        help="Qdrant collection name to query. Defaults to the name derived from config.yaml.",
+    )
+    args = parser.parse_args()
+
     llm = ChatOpenAI(model="gpt-4o-mini")
-    compiled_graph = build_graph(llm)
+    compiled_graph = build_graph(llm, collection_name=args.collection)
 
     config = {"configurable": {"thread_id": THREAD_ID}}
 

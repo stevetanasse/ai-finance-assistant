@@ -177,6 +177,7 @@ def run_evaluation(
     dataset_path: str = "evals/evaluation_dataset.json",
     experiment_prefix: str = "finance-assistant",
     langsmith_dataset_name: str = "ai-finance-assistant-golden",
+    collection_name: str | None = None,
 ) -> None:
     """Run the full golden dataset evaluation against the LangGraph application.
 
@@ -184,6 +185,8 @@ def run_evaluation(
         dataset_path: Path to the golden dataset JSON file.
         experiment_prefix: Prefix for the LangSmith Experiment name.
         langsmith_dataset_name: Name of the LangSmith Dataset to create/reuse.
+        collection_name: Qdrant collection name to query. Defaults to the name
+            derived from config.yaml when None.
 
     Raises:
         EnvironmentError: If required environment variables are not set.
@@ -198,7 +201,7 @@ def run_evaluation(
     _upload_dataset(client, entries, langsmith_dataset_name)
 
     llm = ChatOpenAI(model="gpt-4o-mini")
-    compiled_graph = build_graph(llm)
+    compiled_graph = build_graph(llm, collection_name=collection_name)
 
     def target(inputs: dict) -> dict:
         result = compiled_graph.invoke(
@@ -235,5 +238,11 @@ if __name__ == "__main__":
         default="finance-assistant",
         help="Prefix for the LangSmith Experiment name (default: finance-assistant)",
     )
+    parser.add_argument(
+        "--collection",
+        type=str,
+        default=None,
+        help="Qdrant collection name to query. Defaults to the name derived from config.yaml.",
+    )
     args = parser.parse_args()
-    run_evaluation(experiment_prefix=args.experiment_prefix)
+    run_evaluation(experiment_prefix=args.experiment_prefix, collection_name=args.collection)
