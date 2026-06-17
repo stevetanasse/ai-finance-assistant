@@ -6,6 +6,7 @@ from langgraph.graph import END, StateGraph
 from langgraph.types import Send
 
 from src.rag.embedder.embedding_cache_manager import EmbeddingCacheManager
+from src.rag.embedder.hybrid_retriever import HybridQdrantRetriever
 from src.rag.embedder.qdrant_manager import QdrantManager
 from src.rag.embedder.strategies.fastembed_embedder import FastEmbedEmbedder
 from src.rag.embedder.strategies.sparse_embedder import BM42Embedder
@@ -57,8 +58,14 @@ def build_graph(llm, collection_name: str | None = None):
             dense_embedder.model_name,
             sparse_embedder.model_name,
         )
+    retriever = HybridQdrantRetriever(
+        qdrant_manager=qdrant_manager,
+        dense_embedder=dense_embedder,
+        sparse_embedder=sparse_embedder,
+        collection_name=collection_name,
+    )
     financial_concepts_node = make_financial_concepts_node(
-        llm, qdrant_manager, dense_embedder, sparse_embedder, collection_name
+        llm, qdrant_manager, dense_embedder, sparse_embedder, collection_name, retriever=retriever
     )
 
     graph_builder = StateGraph(AgentState)

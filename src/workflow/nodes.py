@@ -4,7 +4,7 @@ import yfinance as yf
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.tools import tool
 
-from src.rag.embedder.hybrid_search import hybrid_search
+from src.rag.embedder.hybrid_retriever import HybridQdrantRetriever
 
 from .states import AgentState, RouteDecision
 
@@ -83,7 +83,7 @@ FINANCIAL_CONCEPTS_NOT_FOUND_MESSAGE = (
 
 
 def make_financial_concepts_node(llm, qdrant_manager, dense_embedder, sparse_embedder,
-                                  collection_name: str, top_k: int = 5):
+                                  collection_name: str, top_k: int = 5, retriever=None):
     """Create the financial concepts node, grounding answers in a Qdrant collection.
 
     The returned node performs hybrid (dense + sparse) retrieval against
@@ -92,7 +92,20 @@ def make_financial_concepts_node(llm, qdrant_manager, dense_embedder, sparse_emb
     sub-query is missing or empty), then asks ``llm`` to synthesize an answer from
     the retrieved chunks. If no chunks are retrieved, it responds with a graceful
     fallback instead of calling the LLM.
+
+    ``retriever`` lets callers (e.g. ``build_graph``) supply a pre-built
+    ``HybridQdrantRetriever`` so retrieval appears as its own LangSmith span; if
+    omitted, one is built from the other arguments.
     """
+    if retriever is None:
+        retriever = HybridQdrantRetriever(
+            qdrant_manager=qdrant_manager,
+            dense_embedder=dense_embedder,
+            sparse_embedder=sparse_embedder,
+            collection_name=collection_name,
+            top_k=top_k,
+        )
+
     def financial_concepts_node(state: AgentState) -> dict:
         call_counts = dict(state.get("call_counts", {}))
         call_counts["financial_concepts_node"] = call_counts.get("financial_concepts_node", 0) + 1
@@ -113,21 +126,20 @@ def make_financial_concepts_node(llm, qdrant_manager, dense_embedder, sparse_emb
                 "missing or empty; falling back to raw user message"
             )
 
-        chunks = hybrid_search(
-            qdrant_manager, dense_embedder, sparse_embedder, collection_name, user_text, top_k=top_k
-        )
+        retriever_config = {"run_name": "financial_concepts_retriever"}
+        docs = retriever.invoke(user_text, retriever_config)
 
         # `name="financial_concepts"` lets the synchronizer identify which
         # message came from this node during fan-in, since message order
         # after parallel Send execution is not guaranteed.
-        if not chunks:
+        if not docs:
             return {
                 "call_counts": call_counts,
                 "messages": [AIMessage(content=FINANCIAL_CONCEPTS_NOT_FOUND_MESSAGE, name="financial_concepts")],
             }
 
         context = "\n\n".join(
-            f"Source: {chunk['source_url']}\n{chunk['text']}" for chunk in chunks
+            f"Source: {doc.metadata['source_url']}\n{doc.page_content}" for doc in docs
         )
 
         response = llm.invoke([
