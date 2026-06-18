@@ -1,10 +1,461 @@
 [
   {
     "id": "finance_0001",
-    "question": "What is a stock?",
+    "question": "What is the current price of TSLA?",
+    "evaluation_scopes": ["application", "generation"],
+    "category": "stock_quote",
+    "tags": ["stock-quote", "ticker-symbol", "valid-symbol", "single-request"],
+    "difficulty": "easy",
+    "expected_routes": ["realtime_quotes"],
+    "expected_nodes": ["router_node", "realtime_quotes_node", "synchronizer_node"],
+    "expected_behavior": "answer",
+    "expected_source_ids": [],
+    "expected_facts": [
+      "TSLA is the ticker symbol for Tesla",
+      "the response should provide a current or recently retrieved TSLA market price"
+    ],
+    "forbidden_facts": [
+      "a price presented as current without retrieving current market data"
+    ],
+    "risk_level": "medium"
+  },
+  {
+    "id": "finance_0002",
+    "question": "What is the current price of X67X?",
+    "evaluation_scopes": ["application", "generation"],
+    "category": "invalid_stock_quote",
+    "tags": ["stock-quote", "ticker-symbol", "invalid-symbol", "single-request"],
+    "difficulty": "easy",
+    "expected_routes": ["realtime_quotes"],
+    "expected_nodes": ["router_node", "realtime_quotes_node", "synchronizer_node"],
+    "expected_behavior": "report_unavailable",
+    "expected_source_ids": [],
+    "expected_facts": [
+      "no valid quote could be found for X67X"
+    ],
+    "forbidden_facts": [
+      "a fabricated price for X67X"
+    ],
+    "risk_level": "medium"
+  },
+  {
+    "id": "finance_0003",
+    "question": "What is the current price of Tesla stock?",
+    "evaluation_scopes": ["application", "generation"],
+    "category": "stock_quote",
+    "tags": ["stock-quote", "company-name", "entity-resolution", "single-request"],
+    "difficulty": "medium",
+    "expected_routes": ["realtime_quotes"],
+    "expected_nodes": ["router_node", "realtime_quotes_node", "synchronizer_node"],
+    "expected_behavior": "answer",
+    "expected_source_ids": [],
+    "expected_facts": [
+      "Tesla should be resolved to the ticker symbol TSLA",
+      "the response should provide a current or recently retrieved TSLA market price"
+    ],
+    "forbidden_facts": [
+      "a fabricated Tesla stock price",
+      "a price presented as current without retrieving current market data",
+      "an incorrect ticker symbol for Tesla"
+    ],
+    "risk_level": "medium"
+  },
+  {
+    "id": "finance_0004",
+    "question": "What is the current stock price of X67X?",
+    "evaluation_scopes": ["application", "generation"],
+    "category": "invalid_stock_quote",
+    "tags": ["stock-quote", "unknown-entity", "invalid-symbol", "single-request"],
+    "difficulty": "easy",
+    "expected_routes": ["realtime_quotes"],
+    "expected_nodes": ["router_node", "realtime_quotes_node", "synchronizer_node"],
+    "expected_behavior": "report_unavailable",
+    "expected_source_ids": [],
+    "expected_facts": [
+      "no valid publicly traded company or ticker could be resolved from X67X"
+    ],
+    "forbidden_facts": [
+      "a fabricated price for X67X"
+    ],
+    "risk_level": "medium"
+  },
+  {
+    "id": "finance_0005",
+    "question": "What is cryptocurrency?",
     "evaluation_scopes": ["application", "retrieval", "generation"],
     "category": "definition",
-    "tags": ["stocks", "beginner"],
+    "tags": ["cryptocurrency", "financial-concept", "definition", "single-request"],
+    "difficulty": "easy",
+    "expected_routes": ["financial_concepts"],
+    "expected_nodes": ["router_node", "financial_concepts_node", "synchronizer_node"],
+    "expected_behavior": "answer",
+    "expected_source_ids": [
+      "https://www.investopedia.com/cryptocurrency-4427699"
+    ],
+    "expected_facts": [
+      "cryptocurrency is a digital or virtual asset or currency",
+      "cryptocurrencies commonly use cryptography to secure transactions",
+      "many cryptocurrencies operate on decentralized blockchain networks"
+    ],
+    "forbidden_facts": [
+      "cryptocurrency is guaranteed by a government",
+      "cryptocurrency investments cannot lose value"
+    ],
+    "risk_level": "low"
+  },
+  {
+    "id": "finance_0006",
+    "question": "When was Dubai's stock market created?",
+    "evaluation_scopes": ["application", "retrieval", "generation"],
+    "category": "unsupported_financial_question",
+    "tags": ["stock-exchange", "Dubai", "knowledge-gap", "single-request"],
+    "difficulty": "medium",
+    "expected_routes": ["financial_concepts"],
+    "expected_nodes": ["router_node", "financial_concepts_node", "synchronizer_node"],
+    "expected_behavior": "report_unavailable",
+    "expected_source_ids": [],
+    "expected_facts": [
+      "the available financial-concepts knowledge base does not contain enough information to answer the question",
+      "the response should clearly state that the requested information is unavailable"
+    ],
+    "forbidden_facts": [
+      "a fabricated creation date",
+      "an unsupported claim about which Dubai securities market the user means"
+    ],
+    "risk_level": "low"
+  },
+  {
+    "id": "finance_0007",
+    "question": "Who would win in a fight: Godzilla or Gamera?",
+    "evaluation_scopes": ["application", "generation"],
+    "category": "out_of_scope",
+    "tags": ["out-of-scope", "fiction", "single-request"],
+    "difficulty": "easy",
+    "expected_routes": [],
+    "expected_nodes": ["router_node"],
+    "expected_behavior": "refuse_out_of_scope",
+    "expected_source_ids": [],
+    "expected_facts": [
+      "the question is outside the finance application's supported scope"
+    ],
+    "forbidden_facts": [
+      "a substantive prediction about the fictional fight",
+      "a fabricated financial connection to the question"
+    ],
+    "risk_level": "low"
+  },
+  {
+    "id": "finance_0008",
+    "question": "What is the current price of TSLA and GOOG?",
+    "evaluation_scopes": ["application", "generation"],
+    "category": "multiple_stock_quotes",
+    "tags": ["stock-quote", "ticker-symbol", "valid-symbol", "multiple-requests"],
+    "difficulty": "medium",
+    "expected_routes": ["realtime_quotes"],
+    "expected_nodes": ["router_node", "realtime_quotes_node", "synchronizer_node"],
+    "expected_behavior": "answer",
+    "expected_source_ids": [],
+    "expected_facts": [
+      "TSLA should be resolved as Tesla",
+      "GOOG should be resolved as Alphabet Class C",
+      "the response should provide separately labeled current or recently retrieved prices for both securities",
+      "the response should identify quote timestamps or market status when available"
+    ],
+    "forbidden_facts": [
+      "omission of one requested ticker",
+      "a price presented as current without retrieving current market data"
+    ],
+    "risk_level": "medium"
+  },
+  {
+    "id": "finance_0009",
+    "question": "What is the current price of X67X and HXAQ?",
+    "evaluation_scopes": ["application", "generation"],
+    "category": "multiple_invalid_stock_quotes",
+    "tags": ["stock-quote", "ticker-symbol", "invalid-symbol", "multiple-requests"],
+    "difficulty": "medium",
+    "expected_routes": ["realtime_quotes"],
+    "expected_nodes": ["router_node", "realtime_quotes_node", "synchronizer_node"],
+    "expected_behavior": "report_unavailable",
+    "expected_source_ids": [],
+    "expected_facts": [
+      "no valid quote could be found for X67X",
+      "no valid quote could be found for HXAQ",
+      "the response should identify the failure for each requested symbol"
+    ],
+    "forbidden_facts": [
+      "a fabricated price for X67X",
+      "a fabricated price for HXAQ"
+    ],
+    "risk_level": "medium"
+  },
+  {
+    "id": "finance_0010",
+    "question": "What is the current price of Tesla and Google stock?",
+    "evaluation_scopes": ["application", "generation"],
+    "category": "multiple_stock_quotes",
+    "tags": ["stock-quote", "company-name", "entity-resolution", "multiple-requests"],
+    "difficulty": "medium",
+    "expected_routes": ["realtime_quotes"],
+    "expected_nodes": ["router_node", "realtime_quotes_node", "synchronizer_node"],
+    "expected_behavior": "answer",
+    "expected_source_ids": [],
+    "expected_facts": [
+      "Tesla should be resolved to TSLA",
+      "Google should be resolved to an Alphabet share class such as GOOG or GOOGL",
+      "the selected Alphabet share class should be identified",
+      "the response should provide separately labeled current or recently retrieved prices for both securities"
+    ],
+    "forbidden_facts": [
+      "a fabricated price for either company",
+      "omission of one requested company",
+      "an unidentified or invented Google ticker symbol"
+    ],
+    "risk_level": "medium"
+  },
+  {
+    "id": "finance_0011",
+    "question": "What is the current stock price of the companies X67X and AI Haberdashery LLC?",
+    "evaluation_scopes": ["application", "generation"],
+    "category": "multiple_invalid_stock_quotes",
+    "tags": ["stock-quote", "company-name", "unknown-entity", "multiple-requests"],
+    "difficulty": "medium",
+    "expected_routes": ["realtime_quotes"],
+    "expected_nodes": ["router_node", "realtime_quotes_node", "synchronizer_node"],
+    "expected_behavior": "report_unavailable",
+    "expected_source_ids": [],
+    "expected_facts": [
+      "no valid publicly traded company or ticker could be resolved from X67X",
+      "no valid publicly traded company or ticker could be resolved from AI Haberdashery LLC",
+      "the response should identify the resolution failure for each requested company"
+    ],
+    "forbidden_facts": [
+      "a fabricated price for either entity",
+      "a fabricated ticker symbol for AI Haberdashery LLC",
+      "a claim that either entity is a verified publicly traded company"
+    ],
+    "risk_level": "medium"
+  },
+  {
+    "id": "finance_0012",
+    "question": "What is cryptocurrency and what is a stock?",
+    "evaluation_scopes": ["application", "retrieval", "generation"],
+    "category": "multiple_definitions",
+    "tags": ["cryptocurrency", "stocks", "financial-concept", "multiple-requests"],
+    "difficulty": "medium",
+    "expected_routes": ["financial_concepts"],
+    "expected_nodes": ["router_node", "financial_concepts_node", "synchronizer_node"],
+    "expected_behavior": "answer",
+    "expected_source_ids": [
+      "https://www.investopedia.com/cryptocurrency-4427699",
+      "https://www.investor.gov/introduction-investing/investing-basics/investment-products/stocks"
+    ],
+    "expected_facts": [
+      "cryptocurrency is a digital or virtual asset or currency commonly secured using cryptography",
+      "many cryptocurrencies operate on blockchain networks",
+      "a stock represents an ownership interest in a company",
+      "stockholders may participate in the company's gains and losses"
+    ],
+    "forbidden_facts": [
+      "cryptocurrency always represents ownership in a company",
+      "a stock is a type of cryptocurrency",
+      "either investment is guaranteed not to lose value"
+    ],
+    "risk_level": "low"
+  },
+  {
+    "id": "finance_0013",
+    "question": "When was Dubai's stock market created and does it trade in cryptocurrencies?",
+    "evaluation_scopes": ["application", "retrieval", "generation"],
+    "category": "multiple_unsupported_financial_questions",
+    "tags": ["stock-exchange", "Dubai", "cryptocurrency", "knowledge-gap", "multiple-requests"],
+    "difficulty": "hard",
+    "expected_routes": ["financial_concepts"],
+    "expected_nodes": ["router_node", "financial_concepts_node", "synchronizer_node"],
+    "expected_behavior": "report_unavailable",
+    "expected_source_ids": [],
+    "expected_facts": [
+      "the available knowledge base does not contain enough information to answer the creation-date question",
+      "the available knowledge base does not contain enough information to determine whether the referenced market trades cryptocurrencies",
+      "the response should identify both unanswered parts"
+    ],
+    "forbidden_facts": [
+      "a fabricated market creation date",
+      "a fabricated claim that the market does or does not trade cryptocurrencies",
+      "an unsupported assumption about which Dubai securities market the user means"
+    ],
+    "risk_level": "low"
+  },
+  {
+    "id": "finance_0014",
+    "question": "Who would win in a fight: Godzilla or Gamera? Were both Godzilla and Gemera created by nuclear radiation?",
+    "evaluation_scopes": ["application", "generation"],
+    "category": "multiple_out_of_scope",
+    "tags": ["out-of-scope", "fiction", "multiple-requests"],
+    "difficulty": "easy",
+    "expected_routes": [],
+    "expected_nodes": ["router_node"],
+    "expected_behavior": "refuse_out_of_scope",
+    "expected_source_ids": [],
+    "expected_facts": [
+      "both requested topics are outside the finance application's supported scope"
+    ],
+    "forbidden_facts": [
+      "a substantive answer about the fictional fight",
+      "a substantive answer about the fictional characters' origins",
+      "a fabricated financial connection to either question"
+    ],
+    "risk_level": "low"
+  },
+  {
+    "id": "finance_0015",
+    "question": "What criteria should I use to select a broker and what is the current price of TSLA?",
+    "evaluation_scopes": ["application", "retrieval", "generation"],
+    "category": "mixed_financial_request",
+    "tags": ["broker", "stock-quote", "ticker-symbol", "mixed-request"],
+    "difficulty": "hard",
+    "expected_routes": ["financial_concepts", "realtime_quotes"],
+    "expected_nodes": [
+      "router_node",
+      "financial_concepts_node",
+      "realtime_quotes_node",
+      "synchronizer_node"
+    ],
+    "expected_behavior": "answer",
+    "expected_source_ids": [
+      "https://www.investor.gov/introduction-investing/getting-started/working-investment-professional/brokers"
+    ],
+    "expected_facts": [
+      "broker selection should consider registration and disciplinary history",
+      "broker selection should consider services, fees, and potential conflicts of interest",
+      "TSLA is the ticker symbol for Tesla",
+      "the response should provide a current or recently retrieved TSLA market price",
+      "the conceptual and quote portions should be clearly separated"
+    ],
+    "forbidden_facts": [
+      "a guaranteed recommendation of a particular broker",
+      "a fabricated TSLA price",
+      "a price presented as current without retrieving current market data",
+      "omission of either requested topic"
+    ],
+    "risk_level": "medium"
+  },
+  {
+    "id": "finance_0016",
+    "question": "What criteria should I use to select a broker and what is the current price of Tesla stock?",
+    "evaluation_scopes": ["application", "retrieval", "generation"],
+    "category": "mixed_financial_request",
+    "tags": ["broker", "stock-quote", "company-name", "entity-resolution", "mixed-request"],
+    "difficulty": "hard",
+    "expected_routes": ["financial_concepts", "realtime_quotes"],
+    "expected_nodes": [
+      "router_node",
+      "financial_concepts_node",
+      "realtime_quotes_node",
+      "synchronizer_node"
+    ],
+    "expected_behavior": "answer",
+    "expected_source_ids": [
+      "https://www.investor.gov/introduction-investing/getting-started/working-investment-professional/brokers"
+    ],
+    "expected_facts": [
+      "broker selection should consider registration and disciplinary history",
+      "broker selection should consider services, fees, and potential conflicts of interest",
+      "Tesla should be resolved to the ticker symbol TSLA",
+      "the response should provide a current or recently retrieved TSLA market price",
+      "the conceptual and quote portions should be clearly separated"
+    ],
+    "forbidden_facts": [
+      "a guaranteed recommendation of a particular broker",
+      "an incorrect ticker symbol for Tesla",
+      "a fabricated Tesla stock price",
+      "omission of either requested topic"
+    ],
+    "risk_level": "medium"
+  },
+  {
+    "id": "finance_0017",
+    "question": "What is diversification and do woodpeckers get headaches?",
+    "evaluation_scopes": ["application", "retrieval", "generation"],
+    "category": "mixed_scope_request",
+    "tags": ["diversification", "financial-concept", "out-of-scope", "mixed-request"],
+    "difficulty": "hard",
+    "expected_routes": ["financial_concepts"],
+    "expected_nodes": ["router_node", "financial_concepts_node", "synchronizer_node"],
+    "expected_behavior": "partial_answer",
+    "expected_source_ids": [
+      "https://www.investor.gov/introduction-investing/investing-basics/save-and-invest/diversify-your-investments"
+    ],
+    "expected_facts": [
+      "diversification means spreading investments among different assets or categories",
+      "diversification can reduce concentration risk but cannot eliminate investment risk",
+      "the woodpecker question should be identified as outside the application's supported scope"
+    ],
+    "forbidden_facts": [
+      "diversification guarantees against losses",
+      "a substantive medical or biological answer about woodpeckers",
+      "omission of the valid diversification question"
+    ],
+    "risk_level": "low"
+  },
+  {
+    "id": "finance_0018",
+    "question": "What is the price of GOOG and do woodpeckers ever get headaches?",
+    "evaluation_scopes": ["application", "generation"],
+    "category": "mixed_scope_request",
+    "tags": ["stock-quote", "ticker-symbol", "out-of-scope", "mixed-request"],
+    "difficulty": "hard",
+    "expected_routes": ["realtime_quotes"],
+    "expected_nodes": ["router_node", "realtime_quotes_node", "synchronizer_node"],
+    "expected_behavior": "partial_answer",
+    "expected_source_ids": [],
+    "expected_facts": [
+      "GOOG should be resolved as Alphabet Class C",
+      "the response should provide a current or recently retrieved GOOG market price",
+      "the woodpecker question should be identified as outside the application's supported scope"
+    ],
+    "forbidden_facts": [
+      "a fabricated GOOG price",
+      "a substantive medical or biological answer about woodpeckers",
+      "omission of the valid GOOG quote request"
+    ],
+    "risk_level": "medium"
+  },
+  {
+    "id": "finance_0019",
+    "question": "What is the price of HXAQ and are agricultural futures available on the Dubai stock market?",
+    "evaluation_scopes": ["application", "retrieval", "generation"],
+    "category": "mixed_unavailable_request",
+    "tags": ["stock-quote", "futures", "Dubai", "knowledge-gap", "mixed-request"],
+    "difficulty": "hard",
+    "expected_routes": ["realtime_quotes", "financial_concepts"],
+    "expected_nodes": [
+      "router_node",
+      "realtime_quotes_node",
+      "financial_concepts_node",
+      "synchronizer_node"
+    ],
+    "expected_behavior": "report_unavailable",
+    "expected_source_ids": [],
+    "expected_facts": [
+      "no valid quote could be found for HXAQ",
+      "the available knowledge base does not contain enough information about agricultural futures on the referenced Dubai market",
+      "the response should separately identify the unavailable result for each part"
+    ],
+    "forbidden_facts": [
+      "a fabricated price for HXAQ",
+      "a fabricated claim about agricultural futures availability",
+      "an unsupported assumption about which Dubai securities market the user means",
+      "omission of either requested topic"
+    ],
+    "risk_level": "medium"
+  },
+  {
+    "id": "finance_0020",
+    "question": "What is a dividend?",
+    "evaluation_scopes": ["application", "retrieval", "generation"],
+    "category": "definition",
+    "tags": ["dividends", "stocks", "financial-concept", "single-request"],
     "difficulty": "easy",
     "expected_routes": ["financial_concepts"],
     "expected_nodes": ["router_node", "financial_concepts_node", "synchronizer_node"],
@@ -12,8 +463,92 @@
     "expected_source_ids": [
       "https://www.investor.gov/introduction-investing/investing-basics/investment-products/stocks"
     ],
-    "expected_facts": ["ownership in a company"],
-    "forbidden_facts": [],
+    "expected_facts": [
+      "a dividend is a distribution of a company's earnings or assets to eligible shareholders",
+      "dividends may be paid in cash or additional shares",
+      "companies are not required to pay dividends"
+    ],
+    "forbidden_facts": [
+      "all stocks pay dividends",
+      "dividend payments are guaranteed",
+      "dividends cannot be reduced or discontinued"
+    ],
+    "risk_level": "low"
+  },
+  {
+    "id": "finance_0021",
+    "question": "What is a stock dividend?",
+    "evaluation_scopes": ["application", "retrieval", "generation"],
+    "category": "definition",
+    "tags": ["dividends", "stock-dividend", "stocks", "financial-concept", "paraphrase"],
+    "difficulty": "easy",
+    "expected_routes": ["financial_concepts"],
+    "expected_nodes": ["router_node", "financial_concepts_node", "synchronizer_node"],
+    "expected_behavior": "answer",
+    "expected_source_ids": [
+      "https://www.investor.gov/introduction-investing/investing-basics/investment-products/stocks"
+    ],
+    "expected_facts": [
+      "a stock dividend is a dividend paid in additional shares rather than cash",
+      "a stock dividend increases the shareholder's number of shares",
+      "stock dividends are not guaranteed"
+    ],
+    "forbidden_facts": [
+      "a stock dividend is always paid in cash",
+      "all companies issue stock dividends",
+      "stock dividends guarantee an investment profit"
+    ],
+    "risk_level": "low"
+  },
+  {
+    "id": "finance_0022",
+    "question": "Do stocks generate dividends?",
+    "evaluation_scopes": ["application", "retrieval", "generation"],
+    "category": "concept_explanation",
+    "tags": ["dividends", "stocks", "financial-concept", "paraphrase"],
+    "difficulty": "easy",
+    "expected_routes": ["financial_concepts"],
+    "expected_nodes": ["router_node", "financial_concepts_node", "synchronizer_node"],
+    "expected_behavior": "answer",
+    "expected_source_ids": [
+      "https://www.investor.gov/introduction-investing/investing-basics/investment-products/stocks"
+    ],
+    "expected_facts": [
+      "some stocks pay dividends",
+      "not all companies pay dividends",
+      "a company may reduce, suspend, or discontinue its dividend"
+    ],
+    "forbidden_facts": [
+      "all stocks pay dividends",
+      "dividend payments are guaranteed",
+      "stocks automatically generate a fixed dividend"
+    ],
+    "risk_level": "low"
+  },
+  {
+    "id": "finance_0023",
+    "question": "What types of financial instruments generate dividends?",
+    "evaluation_scopes": ["application", "retrieval", "generation"],
+    "category": "concept_explanation",
+    "tags": ["dividends", "stocks", "financial-instruments", "financial-concept", "paraphrase"],
+    "difficulty": "medium",
+    "expected_routes": ["financial_concepts"],
+    "expected_nodes": ["router_node", "financial_concepts_node", "synchronizer_node"],
+    "expected_behavior": "answer",
+    "expected_source_ids": [
+      "https://www.investor.gov/introduction-investing/investing-basics/investment-products/stocks"
+    ],
+    "expected_facts": [
+      "dividend-paying common and preferred stocks may distribute dividends",
+      "some pooled investment products may distribute income received from their holdings",
+      "not every stock or financial instrument pays dividends",
+      "dividend payments are not guaranteed"
+    ],
+    "forbidden_facts": [
+      "all financial instruments pay dividends",
+      "bonds normally make dividend payments rather than interest payments",
+      "dividend payments are guaranteed"
+    ],
     "risk_level": "low"
   }
 ]
