@@ -89,7 +89,65 @@ def test_routes_out_of_scope():
     )
 
     assert result["call_counts"]["router_node"] == 1
+    assert result["call_counts"]["out_of_scope_node"] == 1
     assert result["call_counts"]["synchronizer_node"] == 1
     assert "financial_concepts_node" not in result["call_counts"]
     assert "realtime_quotes_node" not in result["call_counts"]
-    assert len(result["call_counts"]) == 2
+    assert len(result["call_counts"]) == 3
+
+
+def test_route_decision_allows_out_of_scope_with_realtime_quotes():
+    decision = RouteDecision(
+        next=["out_of_scope", "realtime_quotes"],
+        reasoning="mock reasoning",
+        realtime_quotes_query="TSLA",
+    )
+
+    assert decision.next == ["out_of_scope", "realtime_quotes"]
+    assert decision.realtime_quotes_query == "TSLA"
+
+
+def test_route_decision_allows_out_of_scope_with_financial_concepts():
+    decision = RouteDecision(
+        next=["out_of_scope", "financial_concepts"],
+        reasoning="mock reasoning",
+        financial_concepts_query="What is a dividend?",
+    )
+
+    assert decision.next == ["out_of_scope", "financial_concepts"]
+    assert decision.financial_concepts_query == "What is a dividend?"
+
+
+def test_route_decision_allows_all_three_routes():
+    decision = RouteDecision(
+        next=["out_of_scope", "financial_concepts", "realtime_quotes"],
+        reasoning="mock reasoning",
+        financial_concepts_query="What is a dividend?",
+        realtime_quotes_query="TSLA",
+    )
+
+    assert decision.next == ["out_of_scope", "financial_concepts", "realtime_quotes"]
+    assert decision.financial_concepts_query == "What is a dividend?"
+    assert decision.realtime_quotes_query == "TSLA"
+
+
+def test_route_decision_solo_out_of_scope_clears_sub_queries():
+    decision = RouteDecision(
+        next=["out_of_scope"],
+        reasoning="mock reasoning",
+        financial_concepts_query="x",
+        realtime_quotes_query="y",
+    )
+
+    assert decision.financial_concepts_query is None
+    assert decision.realtime_quotes_query is None
+
+
+def test_route_decision_combined_out_of_scope_does_not_clear_sub_queries():
+    decision = RouteDecision(
+        next=["out_of_scope", "realtime_quotes"],
+        reasoning="mock reasoning",
+        realtime_quotes_query="TSLA price",
+    )
+
+    assert decision.realtime_quotes_query == "TSLA price"

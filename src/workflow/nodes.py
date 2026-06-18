@@ -22,8 +22,12 @@ ROUTER_SYSTEM_PROMPT = (
     "(e.g. 'What is a P/E ratio, and what is AAPL's current price?'), "
     "return both 'financial_concepts' and 'realtime_quotes' in the 'next' list. "
     "Use out_of_scope for anything unrelated to finance. "
-    "'out_of_scope' must always be returned alone, never combined with other "
-    "categories. "
+    "A request can be compound, mixing an in-scope part with an out-of-scope "
+    "part - in that case, include 'out_of_scope' ALONGSIDE 'financial_concepts' "
+    "and/or 'realtime_quotes' in the 'next' list rather than picking only one "
+    "(e.g. for 'What is the price of TSLA and is Godzilla a real animal?', "
+    "return next=['realtime_quotes', 'out_of_scope'] with realtime_quotes_query "
+    "set to 'TSLA'). "
     "When 'financial_concepts' is included in 'next', set "
     "'financial_concepts_query' to a restatement of ONLY the concept-related "
     "portion of the request, with any ticker symbols or price/quote requests "
@@ -224,6 +228,34 @@ def make_realtime_quotes_node(llm):
     return realtime_quotes_node
 
 
+OUT_OF_SCOPE_MESSAGE = (
+    "This agent does not have the ability to reliably answer or respond to "
+    "part of your request."
+)
+
+
+def make_out_of_scope_node():
+    """Create the out_of_scope node, a fixed canned response with no LLM call.
+
+    Runs whenever 'out_of_scope' is present in route_decision.next, whether
+    alone or alongside financial_concepts/realtime_quotes, via the same
+    Send-based fan-out as the other routes.
+    """
+    def out_of_scope_node(state: AgentState) -> dict:
+        call_counts = dict(state.get("call_counts", {}))
+        call_counts["out_of_scope_node"] = call_counts.get("out_of_scope_node", 0) + 1
+
+        # `name="out_of_scope"` lets the synchronizer identify which message
+        # came from this node during fan-in, since message order after
+        # parallel Send execution is not guaranteed.
+        return {
+            "call_counts": call_counts,
+            "messages": [AIMessage(content=OUT_OF_SCOPE_MESSAGE, name="out_of_scope")],
+        }
+
+    return out_of_scope_node
+
+
 SYNCHRONIZER_OUT_OF_SCOPE_MESSAGE = (
     "This agent does not have the ability to reliably answer or respond to the request."
 )
@@ -234,8 +266,9 @@ def make_synchronizer_node():
 
     - route == ["out_of_scope"]: emits the fixed canned response, no LLM call.
     - len(route) > 1: combines the AIMessage from each branch (identified via
-      `.name`) into one labeled, multi-section response
-      ("**Financial Concept**" / "**Market Data**").
+      `.name`) into one labeled, multi-section response, in fixed order
+      ("**Out of Scope**" / "**Financial Concept**" / "**Market Data**"),
+      including only the sections for routes actually present in `route`.
     - single non-out-of-scope route: pass-through - returns no `messages`
       update, leaving the existing assistant message as the final answer.
     """
@@ -253,6 +286,7 @@ def make_synchronizer_node():
         if len(route) > 1:
             sections = []
             for r, header in [
+                ("out_of_scope", "**Out of Scope**"),
                 ("financial_concepts", "**Financial Concept**"),
                 ("realtime_quotes", "**Market Data**"),
             ]:
