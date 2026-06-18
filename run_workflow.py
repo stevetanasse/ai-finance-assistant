@@ -13,7 +13,7 @@ from langchain_openai import ChatOpenAI
 
 from src.workflow.graph import build_graph
 
-THREAD_ID = "finance-assistant-thread-1"
+THREAD_ID = "finance-assistant-thread-console"
 
 
 def main():
@@ -43,7 +43,7 @@ def main():
         result = compiled_graph.invoke(initial_state, config=config)
 
         print(result["messages"][-1].content)
-        print(result["call_counts"])
+        # print(result["call_counts"])
 
 # Nodes
 if __name__ == "__main__":
