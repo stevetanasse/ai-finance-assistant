@@ -28,7 +28,7 @@ LangSmith-backed evaluation harness.
 
 ```bash
 # Clone the repository
-git clone <repo-url>
+git clone https://github.com/stevetanasse/ai-finance-assistant.git
 cd ai-finance-assistant
 
 # Install dependencies into a managed virtual environment (.venv)
@@ -49,6 +49,11 @@ cp .env.example .env
 
 Before the assistant can answer financial-concept questions, a Qdrant
 collection must be populated — see [Run the RAG pipeline](#run-the-rag-pipeline).
+
+```bash
+# run the rag pipeline to populate the Qdrant collection
+uv run python -m src.rag.pipeline.rag_pipeline --cache-path ./rag_caches --action embed --url-path "rag_sources.txt" --chunk-size 2000 --chunk-overlap 200 --dense-embed bge-small-en-v1.5 --sparse-embed bm42 --verbose
+```
 
 ## Usage
 
