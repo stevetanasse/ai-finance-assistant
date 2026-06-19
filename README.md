@@ -127,7 +127,7 @@ download/scrape/chunk/embed pipeline:
 uv run python -m src.rag.pipeline.rag_pipeline \
   --cache-path rag_caches \
   --action embed \
-  --url-path urls.txt \
+  --url-path "rag_sources.txt" \
   --chunk-size 2000 \
   --chunk-overlap 200 \
   --dense-embed bge-small-en-v1.5 \

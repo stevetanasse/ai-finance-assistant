@@ -39,7 +39,7 @@ if prompt := st.chat_input("Ask a finance question..."):
                 reply = data["response"]
                 route = data["route"]
                 st.markdown(reply)
-                st.caption(f"Route: {', '.join(route)}")
+                # st.caption(f"Route: {', '.join(route)}")
                 st.session_state.messages.append(
                     {"role": "assistant", "content": reply, "route": route}
                 )
