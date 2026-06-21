@@ -110,7 +110,7 @@ uv run pytest tests/ -v -m integration
 against the compiled graph as a LangSmith Experiment:
 
 ```bash
-uv run python evals/runner.py --experiment-prefix finance-assistant --collection fin_c500_o50_bge-small_bm42
+uv run python evals/runner.py --experiment-prefix finance-assistant --collection fin_c2000_o200_bge-small_bm42
 ```
 
 Requires `OPENAI_API_KEY`, `LANGSMITH_API_KEY`, `LANGSMITH_PROJECT`, and
@@ -185,7 +185,7 @@ it, reusing cached results from prior runs unless `--force-refresh` is set.
 uv run python -m src.rag.pipeline.rag_pipeline \
   --cache-path rag_caches \
   --action embed \
-  --url-path urls.txt \
+  --url-path "rag_sources.txt" \
   --chunk-size 500 \
   --chunk-overlap 50 \
   --dense-embed bge-small-en-v1.5 \
@@ -217,7 +217,7 @@ fixed thread ID for the life of the process, so conversational context is
 preserved until you exit.
 
 ```bash
-uv run python run_workflow.py --collection fin_c500_o50_bge-small_bm42
+uv run python run_workflow.py --collection fin_c2000_o200_bge-small_bm42
 ```
 
 | Argument | Required | Description |
@@ -237,7 +237,7 @@ scoring each example with three evaluators (`answer_correctness`,
 per-metric averages and any zero-score failures.
 
 ```bash
-uv run python evals/runner.py --experiment-prefix finance-assistant --collection fin_c500_o50_bge-small_bm42
+uv run python evals/runner.py --experiment-prefix finance-assistant --collection fin_c2000_o200_bge-small_bm42
 ```
 
 | Argument | Required | Description |

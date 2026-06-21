@@ -30,3 +30,4 @@ rag_caches/
 # OS
 .DS_Store
 Thumbs.db
+.coverage
